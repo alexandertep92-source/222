@@ -29,6 +29,8 @@ jobs:
   android:
     needs: test
     runs-on: ubuntu-latest
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -41,31 +43,39 @@ jobs:
           channel: stable
           cache: true
 
-      # Optional: a fixed signing key, so new versions install as updates
-      # (see README, "Eigener Signaturschlüssel").
-      - name: Signing key
+      # All versions must carry the same signature so they install as updates
+      # (README, "Updates und Signatur"). The key is android/signing/release.p12,
+      # its password is the ANDROID_SIGNING_PASSWORD secret.
+      - name: Check signing password
+        id: signing
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/release.jks
-            {
-              echo "storeFile=release.jks"
-              echo "storePassword=$KEYSTORE_PASSWORD"
-              echo "keyAlias=$KEY_ALIAS"
-              echo "keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
-            } > android/key.properties
-            echo "SIGNED=release" >> "$GITHUB_ENV"
+          if [ -n "$ANDROID_SIGNING_PASSWORD" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::No signing key configured - the APK is signed with a temporary debug key."
-            echo "SIGNED=debug" >> "$GITHUB_ENV"
+            echo "::warning::Secret ANDROID_SIGNING_PASSWORD fehlt - APK wird nur mit Debug-Schlüssel gebaut und nicht veröffentlicht."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - run: flutter build apk --release --build-number=${{ github.run_number }}
+        env:
+          ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk Browser-Tresor.apk
+
+      - name: Verify signature
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner
+          actual=$("$apksigner" verify --print-certs Browser-Tresor.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          echo "Signatur: $actual"
+          if [ "$actual" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK ist nicht mit dem festen Release-Schlüssel signiert."
+            exit 1
+          fi
+        env:
+          EXPECTED_CERT_SHA256: 07a9b7972c7c8e7eda100a69bdc6d37d7303b235f438abc6ef0bd09cab068413
+
       - uses: actions/upload-artifact@v4
         with:
           name: Browser-Tresor-apk
@@ -94,7 +104,9 @@ jobs:
           path: Browser-Tresor-unsigned.ipa
 
   release:
-    if: github.event_name != 'pull_request'
+    # Only signed builds are published, so every release installs as an
+    # update over the previous one.
+    if: github.event_name != 'pull_request' && needs.android.outputs.signed == 'true'
     needs: [android, ios]
     runs-on: ubuntu-latest
     steps:

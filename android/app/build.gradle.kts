@@ -6,12 +6,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Release signing key (see README "Eigener Signaturschlüssel"). Without it the
-// build falls back to the debug key.
+// Release signing (see README "Updates und Signatur"). Every version must be
+// signed with the same key, otherwise Android refuses to install it as an
+// update. The key in android/signing/release.p12 is password protected; the
+// password comes from the ANDROID_SIGNING_PASSWORD environment variable
+// (a GitHub secret in CI). An android/key.properties file overrides it.
+// Without either, the build falls back to the debug key.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
+val signingPassword: String? = System.getenv("ANDROID_SIGNING_PASSWORD")
 
 android {
     namespace = "com.quickweb.tresor_browser"
@@ -39,6 +44,14 @@ android {
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        } else if (!signingPassword.isNullOrEmpty()) {
+            create("release") {
+                storeFile = rootProject.file("signing/release.p12")
+                storeType = "pkcs12"
+                storePassword = signingPassword
+                keyAlias = "browser"
+                keyPassword = signingPassword
             }
         }
     }

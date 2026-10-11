@@ -61,7 +61,7 @@ ablegst, ist in der normalen Galerie und für andere Apps nicht mehr sichtbar.
 3. „Browser“ starten, PIN festlegen, fertig.
 
 Die APK wird bei jedem Push automatisch von GitHub Actions gebaut
-(`.github/workflows/build.yml`).
+(`.github/workflows/build.yml`), Updates siehe unten.
 
 ### iPhone
 
@@ -70,32 +70,22 @@ Der Build erzeugt `Browser-Tresor-unsigned.ipa`, die du mit einem
 Sideloading-Tool (z. B. AltStore oder Sideloadly) mit deiner Apple-ID
 installieren kannst. Alternativ auf einem Mac mit Xcode: `flutter run --release`.
 
-### Eigener Signaturschlüssel (für Updates)
+### Updates
 
-Android installiert eine neue Version nur dann als Update, wenn sie mit
-demselben Schlüssel signiert ist. Ohne eigenen Schlüssel signiert der Build
-mit einem wechselnden Debug-Schlüssel – dann müsste die App für ein Update
-deinstalliert werden (**Tresor-Inhalt vorher exportieren!**).
+Neue Versionen erscheinen automatisch unter demselben Link. Einfach die neue
+`Browser-Tresor.apk` herunterladen und über die alte installieren – **nicht
+deinstallieren**. PIN, Einstellungen und Tresor-Inhalt bleiben erhalten.
 
-Einmalig einrichten (Rechner mit Java):
+Das funktioniert, weil alle Versionen mit demselben Schlüssel signiert sind
+(`android/signing/release.p12`, passwortgeschützt). Das Passwort liegt nur als
+GitHub-Secret `ANDROID_SIGNING_PASSWORD` vor (*Settings → Secrets and
+variables → Actions*). Fehlt es, baut der Workflow nur eine Test-APK mit
+Debug-Schlüssel und veröffentlicht kein Release. Der Workflow prüft vor jeder
+Veröffentlichung, dass die APK das richtige Zertifikat trägt
+(SHA-256 `07a9b797…ab068413`).
 
-```bash
-keytool -genkeypair -v -keystore release.jks -alias browser \
-  -keyalg RSA -keysize 4096 -validity 10000
-base64 -w0 release.jks   # Ausgabe kopieren
-```
-
-Dann im GitHub-Repository unter *Settings → Secrets and variables → Actions*
-anlegen:
-
-| Secret | Wert |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | die base64-Ausgabe |
-| `ANDROID_KEYSTORE_PASSWORD` | Passwort des Keystores |
-| `ANDROID_KEY_ALIAS` | `browser` |
-| `ANDROID_KEY_PASSWORD` | Passwort des Schlüssels (meist dasselbe) |
-
-`release.jks` gut aufbewahren und **nie** ins Repository hochladen.
+> Das Passwort niemals ins Repository schreiben. Ohne das Passwort kann
+> niemand eine Version bauen, die sich über deine installierte App legt.
 
 ## Entwicklung
 
@@ -106,7 +96,7 @@ flutter pub get
 flutter analyze
 flutter test
 flutter run            # Android-Gerät oder Emulator
-flutter build apk      # Release-APK
+ANDROID_SIGNING_PASSWORD=… flutter build apk   # Release-APK (signiert)
 ```
 
 Aufbau:
