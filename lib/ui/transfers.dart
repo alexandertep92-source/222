@@ -371,7 +371,11 @@ class Transfers {
         } catch (_) {
           // Counted below.
         } finally {
-          if (temp != null) await temp.parent.delete(recursive: true);
+          try {
+            await temp?.parent.delete(recursive: true);
+          } on FileSystemException {
+            // Already removed.
+          }
         }
       }
     });
