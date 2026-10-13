@@ -4,6 +4,15 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+// Werte für die Balken in der Heldenauswahl (0–5)
+const HERO_BARS = {
+  knight: { Leben: 5, Tempo: 2, Reichweite: 1, Fläche: 3 },
+  archer: { Leben: 2, Tempo: 4, Reichweite: 5, Fläche: 2 },
+  mage: { Leben: 1, Tempo: 3, Reichweite: 4, Fläche: 5 },
+  ninja: { Leben: 2, Tempo: 5, Reichweite: 3, Fläche: 2 },
+  dwarf: { Leben: 4, Tempo: 1, Reichweite: 2, Fläche: 5 },
+};
+
 const UI = {
   coarse: false, screen: null, modalStack: [], hud: {}, cache: {}, safe: { l: 0, r: 0 },
   selected: null, bannerT: 0, quitArmed: false,
@@ -15,15 +24,22 @@ const UI = {
     const h = this.hud;
     h.root = $('#hud');
     h.xpFill = $('#xp-fill'); h.lvl = $('#lvl');
-    h.hpFill = $('#hp-fill'); h.hpText = $('#hp-text');
+    h.hpFill = $('#hp-fill'); h.hpLag = $('#hp-lag'); h.hpText = $('#hp-text');
     h.gold = $('#gold'); h.kills = $('#kills');
     h.timer = $('#timer'); h.timerSub = $('#timer-sub');
     h.weapons = $('#weapons');
     h.boss = $('#bossbar'); h.bossName = $('#boss-name'); h.bossFill = $('#boss-fill');
-    h.dash = $('#btn-dash');
+    h.dash = $('#btn-dash'); h.portrait = $('#hud-portrait');
+    $('#btn-jump').innerHTML = Icons.misc('jump') + '<span>Sprung</span>';
+    $('#btn-dash').innerHTML = Icons.misc('dash') + '<span>Sprint</span>';
 
-    const press = (el, fn) => el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
-    press($('#btn-jump'), () => { Input.jumpPressed = true; });
+    const press = (el, fn, up) => {
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+      if (up) {
+        el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+      }
+    };
+    press($('#btn-jump'), () => { Input.jumpPressed = true; Input.jumpHeld = true; }, () => { Input.jumpHeld = false; });
     press($('#btn-dash'), () => { Input.dashPressed = true; });
     press($('#btn-pause'), () => pauseGame());
 
@@ -31,6 +47,7 @@ const UI = {
     click('#btn-play', () => this.showScreen('select'));
     click('#btn-settings', () => this.openModal('settings'));
     click('#btn-help', () => this.openModal('help'));
+    click('#btn-rotate', () => this.cycleRotation());
     click('#btn-back', () => this.showScreen('title'));
     click('#btn-start', () => { this.tryFullscreen(); startRun(this.selected); });
     click('#btn-reroll', () => rerollChoice());
@@ -52,7 +69,6 @@ const UI = {
     this.measureSafe();
     window.addEventListener('resize', () => { this.measureSafe(); this.updateRotateHint(); });
     this.updateRotateHint();
-    // Keine Doppeltipp-Vergrößerung und kein Kontextmenü im Spiel
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     document.addEventListener('dblclick', (e) => e.preventDefault());
@@ -68,9 +84,20 @@ const UI = {
   safeLeft() { return this.safe.l; },
   safeRight() { return this.safe.r; },
 
+  // Hochformat-Hinweis bzw. Drehknopf im Titelbild
   updateRotateHint() {
-    const portrait = window.innerHeight > window.innerWidth * 1.1;
-    $('#rotate-hint').hidden = !(this.coarse && portrait && App.state === 'title');
+    const realPortrait = window.innerHeight > window.innerWidth * 1.05;
+    $('#btn-rotate').hidden = !(this.coarse && realPortrait);
+    $('#rotate-hint').hidden = !(this.coarse && realPortrait && View.rot === 0 && App.state === 'title');
+  },
+  cycleRotation() {
+    const order = ['auto', 'ccw', 'off'];
+    const cur = Settings.landscape === 'auto' || !Settings.landscape ? 'auto' : Settings.landscape;
+    Settings.landscape = order[(order.indexOf(cur) + 1) % order.length];
+    saveSettings();
+    applyResolution();
+    this.syncSettings();
+    this.updateRotateHint();
   },
 
   tryFullscreen() {
@@ -80,9 +107,22 @@ const UI = {
       const req = el.requestFullscreen || el.webkitRequestFullscreen;
       if (req && !document.fullscreenElement) {
         const pr = req.call(el, { navigationUI: 'hide' });
-        if (pr && pr.then) pr.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (_) { /* egal */ } }).catch(() => {});
+        if (pr && pr.then) {
+          pr.then(() => {
+            if (View.rot !== 0) return;
+            try { screen.orientation.lock('landscape').catch(() => {}); } catch (_) { /* egal */ }
+          }).catch(() => {});
+        }
       }
     } catch (_) { /* Vollbild nicht erlaubt */ }
+  },
+
+  // Kurzer Übergang (Kreis-Blende) beim Rundenstart
+  wipe() {
+    const w = $('#wipe');
+    w.classList.remove('go'); void w.offsetWidth; w.classList.add('go');
+    clearTimeout(this.wipeT);
+    this.wipeT = setTimeout(() => w.classList.remove('go'), 900);
   },
 
   showScreen(name) {
@@ -90,7 +130,7 @@ const UI = {
     this.screen = name;
     if (name === 'title' || name === 'select') {
       App.state = name;
-      showPreview(this.selected);
+      showPreview();
       if (name === 'select') this.showHero(this.selected);
     }
     this.updateRotateHint();
@@ -115,6 +155,11 @@ const UI = {
     return false;
   },
 
+  portraitImg(id, cls = '') {
+    const src = Portraits[id];
+    return src ? `<img class="portrait ${cls}" src="${src}" alt="">` : `<span class="portrait ${cls}">${CHARACTERS.find((c) => c.id === id).icon}</span>`;
+  },
+
   // ---------- Heldenauswahl ----------
   buildHeroList() {
     const list = $('#hero-list');
@@ -124,7 +169,7 @@ const UI = {
       b.className = 'hero-chip';
       b.dataset.id = c.id;
       b.style.setProperty('--hero', c.color);
-      b.innerHTML = `<span class="hero-chip-icon">${c.icon}</span><span class="hero-chip-name">${esc(c.name)}</span><span class="hero-chip-role">${esc(c.title)}</span>`;
+      b.innerHTML = `${this.portraitImg(c.id)}<span class="hero-chip-name">${esc(c.name)}</span><span class="hero-chip-role">${esc(c.title)}</span>`;
       b.addEventListener('click', () => { Sound.init(); Sound.pick(); this.showHero(c.id); });
       list.appendChild(b);
     }
@@ -133,28 +178,33 @@ const UI = {
     const c = CHARACTERS.find((x) => x.id === id) || CHARACTERS[0];
     this.selected = c.id;
     Settings.char = c.id; saveSettings();
-    showPreview(c.id);
     document.querySelectorAll('.hero-chip').forEach((b) => b.classList.toggle('active', b.dataset.id === c.id));
     const rec = Store.get(RECORDS_KEY, {})[c.id];
     const recText = rec ? (rec.wins ? `${rec.wins}× gewonnen · Bestzeit ${fmtTime(rec.bestWin || CONFIG.ROUND_SECONDS)} · Stufe ${rec.level}` : `Längste Runde ${fmtTime(rec.best)} · Stufe ${rec.level}`) : 'Noch nicht gespielt';
     const weapons = c.weapons.map((wid, i) => {
       const w = WEAPONS[wid];
-      return `<li><span class="wicon">${w.icon}</span><span><b>${esc(w.name)}</b>${i === 0 ? ' <em>Start</em>' : ''}<br><small>${esc(w.desc)}</small></span></li>`;
+      return `<li><span class="wicon">${Icons.weapon(wid)}</span><span><b>${esc(w.name)}</b>${i === 0 ? ' <em>Start</em>' : ''}<small>${esc(w.desc)}</small></span></li>`;
     }).join('');
-    $('#hero-detail').style.setProperty('--hero', c.color);
-    $('#hero-detail').innerHTML = `
+    const bars = Object.entries(HERO_BARS[c.id]).map(([k, v]) => `<div class="bar"><span>${k}</span><i style="--v:${v / 5}"></i></div>`).join('');
+    const d = $('#hero-detail');
+    d.style.setProperty('--hero', c.color);
+    d.innerHTML = `
       <div class="hd-head"><h2>${esc(c.title)} ${esc(c.name)}</h2><span class="tag">${esc(c.difficulty)}</span></div>
       <p class="hd-desc">${esc(c.desc)}</p>
+      <div class="bars">${bars}</div>
       <p class="hd-passive"><span class="label">Passiv</span> ${esc(c.passive)}</p>
       <ul class="hd-weapons">${weapons}</ul>
       <p class="hd-record"><span class="label">Rekord</span> ${esc(recText)}</p>`;
+    d.classList.remove('swap'); void d.offsetWidth; d.classList.add('swap');
   },
 
   // ---------- Einstellungen ----------
   buildSettings() {
-    const seg = $('#set-quality');
-    seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    $('#set-quality').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       Settings.quality = b.dataset.q; saveSettings(); applyResolution(); this.syncSettings();
+    }));
+    $('#set-landscape').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      Settings.landscape = b.dataset.l; saveSettings(); applyResolution(); this.syncSettings(); this.updateRotateHint();
     }));
     for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) {
       const el = $(`#set-${key}`);
@@ -165,6 +215,7 @@ const UI = {
   },
   syncSettings() {
     $('#set-quality').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.q === Settings.quality));
+    $('#set-landscape').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.l === (Settings.landscape || 'auto')));
     for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) $(`#set-${key}`).checked = !!Settings[key];
     $('#set-sens').value = Settings.sensitivity;
     $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`;
@@ -176,6 +227,7 @@ const UI = {
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = true; });
     this.screen = null;
     this.cache = {};
+    if (on && G) this.hud.portrait.innerHTML = this.portraitImg(G.char.id);
     if (!on) { this.hud.boss.hidden = true; }
     this.updateRotateHint();
   },
@@ -184,13 +236,17 @@ const UI = {
     this.cache[key] = value;
     fn(el, value);
   },
-  updateHud() {
+  updateHud(dt) {
     const h = this.hud, p = G.player, s = G.stats;
     this.set('xp', h.xpFill, Math.round((G.xp / G.xpNeed) * 400) / 4, (el, v) => { el.style.width = `${v}%`; });
-    this.set('lvl', h.lvl, G.level, (el, v) => { el.textContent = `Stufe ${v}`; });
+    this.set('lvl', h.lvl, G.level, (el, v) => {
+      el.textContent = v;
+      el.classList.remove('up'); void el.offsetWidth; el.classList.add('up');
+    });
     const max = Math.round(s.maxHp), hp = Math.min(max, Math.ceil(p.hp));
     this.set('hp', h.hpFill, `${hp}/${max}`, (el) => {
-      el.style.width = `${clamp(hp / max, 0, 1) * 100}%`;
+      const w = `${clamp(hp / max, 0, 1) * 100}%`;
+      el.style.width = w; h.hpLag.style.width = w;
       h.hpText.textContent = `${hp} / ${max}`;
       el.parentElement.classList.toggle('low', hp / max < 0.3);
     });
@@ -209,11 +265,11 @@ const UI = {
     const b = G.bossBar;
     this.set('bossOn', h.boss, !!(b && b.alive), (el, v) => { el.hidden = !v; if (v) h.bossName.textContent = b.def.name; });
     if (b && b.alive) this.set('bossHp', h.bossFill, Math.round((b.hp / b.maxHp) * 1000), (el, v) => { el.style.width = `${Math.max(0, v / 10)}%`; });
-    const cd = clamp(p.dashCd / 1.8, 0, 1);
+    const cd = clamp(p.dashCd / DASH_CD, 0, 1);
     this.set('dash', h.dash, Math.round(cd * 40), (el, v) => { el.style.setProperty('--cd', v / 40); el.classList.toggle('cooling', v > 0); });
     for (const w of G.weapons) this.set(`w${w.slot}`, null, w.level, () => { const el = $(`#wslot-${w.slot} .wlvl`); if (el) el.textContent = w.level; });
     if (this.bannerT > 0) {
-      this.bannerT -= 1 / Math.max(App.fps, 20);
+      this.bannerT -= dt;
       if (this.bannerT <= 0) $('#banner').classList.remove('show');
     }
   },
@@ -226,7 +282,7 @@ const UI = {
       const d = document.createElement('div');
       d.className = 'wslot' + (w ? '' : ' empty');
       d.id = `wslot-${i}`;
-      d.innerHTML = w ? `<span>${w.def.icon}</span><b class="wlvl">${w.level}</b>` : '<span>·</span>';
+      d.innerHTML = w ? `${Icons.weapon(w.id)}<b class="wlvl">${w.level}</b>` : '';
       el.appendChild(d);
     }
     for (const k of Object.keys(this.cache)) if (k[0] === 'w') delete this.cache[k];
@@ -256,20 +312,21 @@ const UI = {
     const [t, s] = titles[choice.source];
     $('#choice-title').textContent = t;
     $('#choice-sub').textContent = s;
+    $('#modal-choice').dataset.source = choice.source;
     const box = $('#choice-cards');
     box.innerHTML = '';
     choice.cards.forEach((c, i) => {
       const r = c.rarity >= 0 ? RARITIES[c.rarity] : null;
       const b = document.createElement('button');
-      b.className = 'card' + (c.kind === 'newWeapon' ? ' new' : '');
+      b.className = 'card' + (c.kind === 'newWeapon' ? ' new' : '') + (c.rarity >= 3 ? ' shiny' : '');
       b.style.setProperty('--rar', r ? r.color : '#ffcf33');
       b.innerHTML = `
-        <span class="card-rar">${r ? esc(r.name) : 'Neu'}</span>
-        <span class="card-icon">${c.icon}</span>
+        <span class="card-rar">${r ? esc(r.name) : 'Neue Waffe'}</span>
+        <span class="card-icon">${Icons.card(c)}</span>
         <span class="card-title">${esc(c.title)}</span>
         <span class="card-sub">${esc(c.sub)}</span>
         <span class="card-desc">${esc(c.desc)}</span>`;
-      b.style.animationDelay = `${i * 60}ms`;
+      b.style.animationDelay = `${i * 70}ms`;
       b.addEventListener('click', () => chooseCard(i));
       box.appendChild(b);
     });
@@ -287,7 +344,7 @@ const UI = {
     $('#btn-quit').textContent = 'Aufgeben';
     $('#pause-info').textContent = `${G.char.title} ${G.char.name} · ${fmtTime(G.time)} · Stufe ${G.level} · ${fmtNum(G.kills)} besiegt`;
     $('#pause-weapons').innerHTML = this.weaponRows();
-    const tomes = Object.keys(G.tomes).map((id) => `<span class="tome" title="${esc(TOMES[id].name)}">${TOMES[id].icon}<b>${G.tomes[id]}</b></span>`).join('');
+    const tomes = Object.keys(G.tomes).map((id) => `<span class="tome" title="${esc(TOMES[id].name)}">${Icons.tome(id)}<b>${G.tomes[id]}</b></span>`).join('');
     $('#pause-tomes').innerHTML = tomes || '<span class="muted">Noch keine Bücher</span>';
     const s = G.stats;
     const stats = [
@@ -300,7 +357,7 @@ const UI = {
   },
   hidePause() { this.closeModal('pause'); },
   weaponRows() {
-    return G.weapons.map((w) => `<tr><td class="wicon">${w.def.icon}</td><td>${esc(w.def.name)}<small>Stufe ${w.level}</small></td><td class="num">${fmtNum(w.dmg)}</td><td class="num">${fmtNum(w.kills)}</td></tr>`).join('');
+    return G.weapons.map((w) => `<tr><td class="wicon">${Icons.weapon(w.id)}</td><td>${esc(w.def.name)}<small>Stufe ${w.level}</small></td><td class="num">${fmtNum(w.dmg)}</td><td class="num">${fmtNum(w.kills)}</td></tr>`).join('');
   },
 
   // ---------- Rundenende ----------
@@ -308,6 +365,7 @@ const UI = {
     const win = G.victory;
     $('#over-title').textContent = win ? 'Sieg!' : 'Besiegt!';
     $('#over-title').classList.toggle('win', win);
+    $('#over-hero').innerHTML = this.portraitImg(G.char.id, 'big');
     $('#over-sub').textContent = win
       ? `${G.char.title} ${G.char.name} hat den Großen Rummser bezwungen.`
       : G.time >= CONFIG.ROUND_SECONDS ? 'So knapp! Der Endboss war zu stark.' : `Durchgehalten: ${fmtTime(G.time)} von ${fmtTime(CONFIG.ROUND_SECONDS)}`;

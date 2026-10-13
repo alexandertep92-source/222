@@ -22,11 +22,22 @@ besiegt, gewinnt die Runde.
 |---|---|---|
 | Linke Bildschirmhälfte: tippen und ziehen | WASD / Pfeiltasten | Laufen (Joystick erscheint dort, wo du tippst) |
 | Rechte Bildschirmhälfte: wischen | Q / E | Kamera drehen |
-| Knopf **Sprung** | Leertaste | Springen (über kleine Gegner, Felsen und Schockwellen) |
+| Knopf **Sprung** | Leertaste | Springen: kurz tippen = kleiner Hüpfer, halten = hoher Sprung (über kleine Gegner, Felsen und Schockwellen) |
 | Knopf **Sprint** | Umschalt | Kurzer, unverwundbarer Spurt |
 | Knopf **II** | Esc / P | Pause |
 
 Die Waffen zielen automatisch. Auf Android pausiert die Zurück-Taste die Runde.
+
+**Querformat überall:** Auf Handys im Hochformat dreht sich das Spiel selbst ins
+Querformat – auch in Apps, die selbst nur Hochformat können (z. B. die
+Claude-App). Handy einfach quer halten. Über **Drehen** im Titelbild oder
+*Einstellungen → Bildschirm* lässt sich die Richtung umkehren oder Hochkant
+wählen.
+
+**Grafikstufen:** *Mittel* (Standard) mit Echtzeit-Schatten, Gras im Wind und
+Leuchteffekten; *Hoch* zusätzlich mit Bloom und schärferen Schatten; *Niedrig*
+für ältere Handys ohne Schatten und Gras. Die Auflösung passt sich automatisch
+an, wenn das Handy nicht hinterherkommt.
 
 ## Helden und ihre Waffen
 
@@ -64,15 +75,22 @@ Reines HTML/JavaScript mit [three.js](https://threejs.org) r158 (liegt unter
 bestehen aus einfachen Formen, alle Töne und die Musik werden mit der
 Web-Audio-API erzeugt.
 
+Die Spiellogik läuft in festen Schritten (60 pro Sekunde); gezeichnet wird mit
+Zwischenwerten zwischen zwei Schritten. Dadurch bewegen sich Figuren und Kamera
+gleichmäßig, egal ob das Handy 30, 60 oder 120 Bilder pro Sekunde schafft.
+
 | Pfad | Inhalt |
 |---|---|
 | `web/js/data.js` | Helden, Waffen, Bücher, Gegner, Bosse und Balancing-Werte |
 | `web/js/core.js` | Hilfsfunktionen, Gelände, Speicher, Ton und Musik |
-| `web/js/world.js` | Renderer, Landschaft, Deko und alle 3D-Modelle |
-| `web/js/entities.js` | Spielfigur, Gegner, Sammelobjekte, Effekte |
+| `web/js/gfx.js` | Renderer, Licht und Schatten, Materialien, Himmel, Leuchtpunkte, Bloom |
+| `web/js/world.js` | Landschaft, Teiche, Gras, Deko, Truhen und Schreine |
+| `web/js/models.js` | Helden, Gegner, Bosse und Porträts |
+| `web/js/entities.js` | Spielfigur, Gegner, Sammelobjekte, Partikel, Effekte |
 | `web/js/weapons.js` | Verhalten der 15 Waffen |
 | `web/js/bosses.js` | Zwischenbosse und Endboss |
 | `web/js/game.js` | Rundenablauf, Eingabe, Kamera, Gegnerwellen, Kartenwahl, Hauptschleife |
+| `web/js/icons.js` | Eigene Symbole (SVG) für Waffen, Bücher und Knöpfe |
 | `web/js/ui.js` | Menüs, HUD und Dialoge |
 | `android/` | Android-Hülle (WebView), baut `Rumms.apk` |
 

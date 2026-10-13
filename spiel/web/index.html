@@ -24,12 +24,14 @@
     <div class="xpbar"><div id="xp-fill"></div></div>
     <div class="hud-left">
       <div class="hp-row">
-        <span id="lvl" class="lvl">Stufe 1</span>
-        <div class="hpbar"><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
-      </div>
-      <div class="counters">
-        <span class="counter"><i class="coin"></i><span id="gold">0</span></span>
-        <span class="counter"><i class="skull"></i><span id="kills">0</span></span>
+        <div class="hud-hero"><div id="hud-portrait"></div><span id="lvl" class="lvl">1</span></div>
+        <div class="hp-col">
+          <div class="hpbar"><div id="hp-lag"></div><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
+          <div class="counters">
+            <span class="counter"><i class="coin"></i><span id="gold">0</span></span>
+            <span class="counter"><i class="skull"></i><span id="kills">0</span></span>
+          </div>
+        </div>
       </div>
       <div id="weapons" class="weapons"></div>
     </div>
@@ -47,9 +49,11 @@
   </div>
 
   <div id="banner" role="status" aria-live="polite"></div>
+  <div id="wipe" aria-hidden="true"></div>
 
   <!-- Titelbild -->
   <section id="scr-title" class="screen" hidden>
+    <button id="btn-rotate" class="btn ghost small rotate-btn" hidden aria-label="Bildschirm drehen">Drehen</button>
     <div class="title-wrap">
       <h1 class="logo"><span>RUMMS</span><em>!</em></h1>
       <p class="tagline">15 Minuten. Fünf Helden. Endlose Horden.<br>Und am Ende wartet der Große Rummser.</p>
@@ -122,6 +126,12 @@
     <div class="panel">
       <h2>Einstellungen</h2>
       <div class="setting">
+        <span>Bildschirm</span>
+        <div id="set-landscape" class="seg">
+          <button data-l="auto">Quer</button><button data-l="ccw">Quer andersrum</button><button data-l="off">Hochkant</button>
+        </div>
+      </div>
+      <div class="setting">
         <span>Grafik</span>
         <div id="set-quality" class="seg">
           <button data-q="low">Niedrig</button><button data-q="mid">Mittel</button><button data-q="high">Hoch</button>
@@ -133,7 +143,7 @@
       <label class="setting"><span>Schadenszahlen</span><input id="set-numbers" type="checkbox" class="toggle"></label>
       <label class="setting"><span>Kamera folgt automatisch</span><input id="set-autoCam" type="checkbox" class="toggle"></label>
       <label class="setting"><span>Kamera-Empfindlichkeit <b id="sens-val">100 %</b></span><input id="set-sens" type="range" min="0.4" max="2.2" step="0.1"></label>
-      <p class="muted small">Kantenglättung ändert sich erst nach einem Neustart des Spiels.</p>
+      <p class="muted small">Schatten, Gras und Leuchteffekte ändern sich erst nach einem Neustart des Spiels.</p>
       <div class="panel-foot"><button class="btn" data-close="settings">Fertig</button></div>
     </div>
   </div>
@@ -145,9 +155,9 @@
       <div class="help-grid">
         <div><h3>Steuerung</h3>
           <ul class="help">
-            <li><b>Linker Daumen:</b> irgendwo links auf den Bildschirm tippen und ziehen, um zu laufen.</li>
+            <li><b>Linker Daumen:</b> irgendwo links auf den Bildschirm tippen und ziehen, um zu laufen. Wenig ziehen = langsam gehen.</li>
             <li><b>Rechter Daumen:</b> rechts wischen, um die Kamera zu drehen.</li>
-            <li><b>Sprung:</b> über kleine Gegner, Felsen und Boss-Schockwellen springen.</li>
+            <li><b>Sprung:</b> kurz tippen für einen kleinen Hüpfer, halten für einen hohen Sprung. Damit kommst du über kleine Gegner, Felsen und Boss-Schockwellen.</li>
             <li><b>Sprint:</b> kurzer, unverwundbarer Spurt.</li>
             <li>Am Computer: WASD, Leertaste, Umschalt, Q/E für die Kamera, Esc für Pause.</li>
           </ul>
@@ -169,7 +179,7 @@
   <!-- Rundenende -->
   <div id="modal-over" class="modal" hidden>
     <div class="panel wide">
-      <h2 id="over-title" class="over-title">Besiegt!</h2>
+      <div class="over-head"><div id="over-hero"></div><h2 id="over-title" class="over-title">Besiegt!</h2></div>
       <p id="over-sub" class="muted"></p>
       <p id="over-best" class="best" hidden>Neuer Rekord!</p>
       <div id="over-stats" class="statgrid six"></div>
@@ -182,18 +192,21 @@
     </div>
   </div>
 
-  <div id="rotate-hint" class="rotate-hint" hidden>Tipp: Dreh dein Handy quer, dann siehst du mehr.</div>
+  <div id="rotate-hint" class="rotate-hint" hidden>Hochkant-Modus aktiv. Über „Drehen“ kommst du zurück ins Querformat.</div>
   <div id="loading" class="loading">Lade Welt …</div>
 </div>
 
 <script src="js/three.min.js"></script>
 <script src="js/data.js"></script>
 <script src="js/core.js"></script>
+<script src="js/gfx.js"></script>
 <script src="js/world.js"></script>
+<script src="js/models.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/weapons.js"></script>
 <script src="js/bosses.js"></script>
 <script src="js/game.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/ui.js"></script>
 <script>
   // Erst starten, wenn die Schriften da sind (oder nach kurzer Wartezeit).

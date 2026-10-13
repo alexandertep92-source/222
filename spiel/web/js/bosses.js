@@ -20,7 +20,9 @@ function spawnBoss(id) {
     state: 'walk', stateT: 0, atkCd: 3, atkIdx: 0, rot: Math.atan2(p.x - x, p.z - z),
     flash: 0, slowT: 0, slow: 0, hitT: new Float32Array(4), lift: 0, enraged: false,
     mesh, sx: 0, sz: 0, tx: 0, tz: 0, cx: 0, cz: 0, waves: 0, phase: 0,
+    px: x, pz: z, pvy: groundHeight(x, z), prot: 0, hitAt: -9,
   };
+  b.prot = b.rot;
   G.bosses.push(b);
   G.bossBar = b;
   Sound.boss();
@@ -57,6 +59,7 @@ function updateBosses(dt) {
       if (b.deathT > 1.5) { W.scene.remove(b.mesh); G.bosses.splice(i, 1); }
       continue;
     }
+    b.px = b.x; b.pz = b.z; b.pvy = b.y + b.lift; b.prot = b.rot;
     const dx = p.x - b.x, dz = p.z - b.z, d = Math.hypot(dx, dz) || 1;
     b.stateT += dt;
     if (b.slowT > 0) b.slowT -= dt;
@@ -159,27 +162,44 @@ function updateBosses(dt) {
       const push = (b.r + 0.45 - dd);
       p.x += (ddx / dd) * push; p.z += (ddz / dd) * push;
     }
-    // Modell
-    const m = b.mesh, parts = m.userData.parts;
-    m.position.set(b.x, b.y + lift, b.z);
-    m.rotation.y = b.rot;
     b.phase += dt * (b.state === 'charge' && b.stateT > 0.85 ? 14 : 5);
+  }
+}
+
+// Darstellung mit Zwischenwerten (flüssig auch bei 90/120 Hz)
+function renderBosses(a) {
+  for (const b of G.bosses) {
+    if (b.dying) continue;
+    const m = b.mesh, parts = m.userData.parts;
+    m.position.set(ilerp(b.px, b.x, a), ilerp(b.pvy, b.y + b.lift, a), ilerp(b.pz, b.z, a));
+    m.rotation.y = alerp(b.prot, b.rot, a);
+    const hk = Math.exp(-(G.time - b.hitAt) * 16) * 0.05;
     if (b.def.model === 'slimeKing') {
       const s = Math.sin(b.phase * 1.5);
-      m.scale.set(1 - s * 0.05, 1 + s * 0.08 + (b.state === 'slam' ? 0.15 : 0), 1 - s * 0.05);
+      m.scale.set(1 - s * 0.05 + hk, 1 + s * 0.08 + (b.state === 'slam' ? 0.15 : 0) - hk, 1 - s * 0.05 + hk);
+      for (const e of parts.eyes) e.scale.y = Math.sin(G.time * 0.7) > 0.985 ? 0.15 : 1;
     } else {
       if (parts.armL) parts.armL.rotation.x = Math.sin(b.phase) * 0.4;
       if (parts.armR) parts.armR.rotation.x = b.state === 'slam' ? -2.4 * Math.sin(Math.min(1, b.stateT) * Math.PI) : -Math.sin(b.phase) * 0.4;
       m.rotation.z = Math.sin(b.phase) * 0.04;
+      m.scale.set(1 + hk, 1 - hk, 1 + hk);
     }
-    for (const mat of m.userData.mats) {
-      if (!mat.userData.baseEmissive) mat.userData.baseEmissive = mat.emissive.clone();
-      if (b.flash > 0) mat.emissive.setRGB(0.9, 0.9, 0.9);
-      else if (b.state === 'charge' && b.stateT < 0.85) mat.emissive.setRGB(0.7, 0.05, 0.05);
-      else mat.emissive.copy(mat.userData.baseEmissive);
+    if (parts.glowPts) {
+      m.updateMatrixWorld();
+      for (const g of parts.glowPts) {
+        _bv.set(g[0], g[1], g[2]).applyMatrix4(m.matrixWorld);
+        FX.glow.add(_bv.x, _bv.y, _bv.z, 1.6, 1, 0.75, 0.2, 0.7);
+      }
+    }
+    for (const mt of m.userData.mats) {
+      if (!mt.userData.baseEmissive) mt.userData.baseEmissive = mt.emissive.clone();
+      if (b.flash > 0) mt.emissive.setRGB(0.35, 0.35, 0.35);
+      else if (b.state === 'charge' && b.stateT < 0.85) mt.emissive.setRGB(0.7, 0.05, 0.05);
+      else mt.emissive.copy(mt.userData.baseEmissive);
     }
   }
 }
+const _bv = new THREE.Vector3();
 
 function onBossKilled(b) {
   b.alive = false; b.dying = true; b.deathT = 0;

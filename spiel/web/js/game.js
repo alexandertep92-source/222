@@ -2,11 +2,46 @@
 // Rumms! – Spielablauf: Runde, Eingabe, Kamera, Gegnerwellen, Truhen, Schreine, Level-ups, Hauptschleife.
 
 let G = null; // Zustand der laufenden Runde
-const App = { state: 'loading', lastT: 0, menuT: 0, preview: null, previewId: null, fps: 60, frameAcc: 0, frames: 0, autoQ: 0 };
+const App = { state: 'loading', lastT: 0, menuT: 0, fps: 60, frameAcc: 0, frames: 0, autoQ: 0, acc: 0 };
+
+// ---------- Bildschirm: Querformat erzwingen, auch wenn die App im Hochformat bleibt ----------
+// Im erzwungenen Querformat wird #app um 90° gedreht. Alle Koordinaten im Spiel
+// beziehen sich auf die gedrehte Fläche (View.w × View.h).
+const View = {
+  w: 1, h: 1, rot: 0, sw: 1, sh: 1,
+  update() {
+    const sw = window.innerWidth, sh = window.innerHeight;
+    this.sw = sw; this.sh = sh;
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const mode = Settings.landscape || 'auto';
+    let rot = 0;
+    if (sh > sw * 1.05 && mode !== 'off' && (coarse || mode !== 'auto')) rot = mode === 'ccw' ? -90 : 90;
+    this.rot = rot;
+    const app = document.getElementById('app');
+    if (rot) {
+      this.w = sh; this.h = sw;
+      app.style.width = `${sh}px`; app.style.height = `${sw}px`;
+      app.style.transformOrigin = '0 0';
+      app.style.transform = rot === 90 ? `translate(${sw}px, 0) rotate(90deg)` : `translate(0, ${sh}px) rotate(-90deg)`;
+      app.classList.add('rotated');
+    } else {
+      this.w = sw; this.h = sh;
+      app.style.width = ''; app.style.height = ''; app.style.transform = ''; app.style.transformOrigin = '';
+      app.classList.remove('rotated');
+    }
+  },
+  // Bildschirmpunkt → Punkt auf der (evtl. gedrehten) Spielfläche
+  toGame(cx, cy) {
+    if (this.rot === 90) return [cy, this.sw - cx];
+    if (this.rot === -90) return [this.sh - cy, cx];
+    return [cx, cy];
+  },
+  get portrait() { return this.h > this.w; },
+};
 
 // ---------- Eingabe ----------
 const Input = {
-  moveX: 0, moveY: 0, jumpPressed: false, dashPressed: false,
+  moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, dashPressed: false,
   keys: new Set(),
   joy: { id: null, ox: 0, oy: 0, x: 0, y: 0, active: false },
   cam: { id: null, lx: 0, ly: 0 },
@@ -20,41 +55,44 @@ const Input = {
       if (e.repeat) return;
       this.keys.add(e.code);
       if (App.state !== 'playing') return;
-      if (e.code === 'Space') { this.jumpPressed = true; e.preventDefault(); }
+      if (e.code === 'Space') { this.jumpPressed = true; this.jumpHeld = true; e.preventDefault(); }
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') this.dashPressed = true;
       if (e.code === 'Escape' || e.code === 'KeyP') pauseGame();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); if (e.code === 'Space') this.jumpHeld = false; });
     window.addEventListener('blur', () => { this.keys.clear(); this.reset(); });
   },
   reset() {
     this.joy.active = false; this.joy.id = null; this.cam.id = null;
-    this.moveX = this.moveY = 0;
+    this.moveX = this.moveY = 0; this.jumpHeld = false;
   },
   down(e) {
     if (App.state !== 'playing') return;
     if (e.pointerType === 'touch') this.touchUsed = true;
-    const w = window.innerWidth;
-    if (e.clientX < w * 0.45 && this.joy.id === null) {
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
+    const w = View.w;
+    if (gx < w * 0.45 && this.joy.id === null) {
       this.joy.id = e.pointerId; this.joy.active = true;
-      this.joy.ox = clamp(e.clientX, 70, w * 0.45); this.joy.oy = clamp(e.clientY, 70, window.innerHeight - 60);
-      this.joy.x = e.clientX; this.joy.y = e.clientY;
+      this.joy.ox = clamp(gx, 70, w * 0.45); this.joy.oy = clamp(gy, 70, View.h - 60);
+      this.joy.x = gx; this.joy.y = gy;
     } else if (this.cam.id === null) {
-      this.cam.id = e.pointerId; this.cam.lx = e.clientX; this.cam.ly = e.clientY;
+      this.cam.id = e.pointerId; this.cam.lx = gx; this.cam.ly = gy;
     }
     e.preventDefault();
   },
   move(e) {
+    if (e.pointerId !== this.joy.id && e.pointerId !== this.cam.id) return;
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
     if (e.pointerId === this.joy.id) {
-      this.joy.x = e.clientX; this.joy.y = e.clientY;
-      const R = 56, dx = this.joy.x - this.joy.ox, dy = this.joy.y - this.joy.oy, d = Math.hypot(dx, dy);
+      this.joy.x = gx; this.joy.y = gy;
+      const R = 56, dx = gx - this.joy.ox, dy = gy - this.joy.oy, d = Math.hypot(dx, dy);
       if (d > R * 1.6) { this.joy.ox += (dx / d) * (d - R * 1.6); this.joy.oy += (dy / d) * (d - R * 1.6); }
       e.preventDefault();
-    } else if (e.pointerId === this.cam.id && G) {
+    } else if (G) {
       const s = 0.0068 * Settings.sensitivity;
-      G.camYaw -= (e.clientX - this.cam.lx) * s;
-      G.camPitch = clamp(G.camPitch + (e.clientY - this.cam.ly) * s * 0.6, 0.2, 1.15);
-      this.cam.lx = e.clientX; this.cam.ly = e.clientY;
+      G.camYawT -= (gx - this.cam.lx) * s;
+      G.camPitchT = clamp(G.camPitchT + (gy - this.cam.ly) * s * 0.6, 0.18, 1.1);
+      this.cam.lx = gx; this.cam.ly = gy;
       G.camTouched = 1.5;
       e.preventDefault();
     }
@@ -68,7 +106,8 @@ const Input = {
     if (this.joy.active) {
       const R = 56, dx = (this.joy.x - this.joy.ox) / R, dy = (this.joy.y - this.joy.oy) / R;
       const d = Math.hypot(dx, dy);
-      if (d > 0.15) { const k = Math.min(1, d) / d; mx = dx * k; my = -dy * k; }
+      // weiche Totzone; volle Geschwindigkeit schon kurz vor dem Rand
+      if (d > 0.12) { const m = Math.min(1, (d - 0.12) / 0.72); const k = m / d; mx = dx * k; my = -dy * k; }
     }
     const K = this.keys;
     if (K.has('KeyW') || K.has('ArrowUp')) my += 1;
@@ -76,10 +115,10 @@ const Input = {
     if (K.has('KeyA') || K.has('ArrowLeft')) mx -= 1;
     if (K.has('KeyD') || K.has('ArrowRight')) mx += 1;
     if (G) {
-      if (K.has('KeyQ')) { G.camYaw += dt * 2.4; G.camTouched = 1.5; }
-      if (K.has('KeyE')) { G.camYaw -= dt * 2.4; G.camTouched = 1.5; }
+      if (K.has('KeyQ')) { G.camYawT += dt * 2.4; G.camTouched = 1.5; }
+      if (K.has('KeyE')) { G.camYawT -= dt * 2.4; G.camTouched = 1.5; }
     }
-    if (this.bot && G) { const b = botMove(); mx = b[0]; my = b[1]; }
+    if (this.bot && G) { const b = botMove(); mx = b[0]; my = b[1]; this.jumpHeld = true; }
     const l = Math.hypot(mx, my);
     if (l > 1) { mx /= l; my /= l; }
     this.moveX = mx; this.moveY = my;
@@ -95,7 +134,8 @@ function newRunState(charDef) {
     level: 1, xp: 0, xpNeed: xpForLevel(1), pendingLevels: 0, rerolls: CONFIG.REROLLS,
     gold: 0, goldEarned: 0, kills: 0, totalDamage: 0, damageTaken: 0, chestsOpened: 0, bossesKilled: 0,
     spawnAcc: 0, nextHorde: 75, miniIdx: 0, finalSpawned: false, relocateT: 0, alive: 0,
-    camYaw: 0, camPitch: 0.52, camT: new THREE.Vector3(), camTouched: 0, shake: 0,
+    camYaw: 0, camYawT: 0, camPitch: 0.5, camPitchT: 0.5, camT: new THREE.Vector3(), camTouched: 0, shake: 0, camKick: 0, camFov: 60,
+    look: new THREE.Vector2(),
     bossBar: null, choice: null, endT: 0, victory: false, god: false,
   };
 }
@@ -137,7 +177,7 @@ function cleanupRun() {
   for (const w of EnemyShots.waves) W.scene.remove(w.mesh);
   Pickups.gems.length = 0; Pickups.coins.length = 0; Pickups.items.length = 0;
   EnemyShots.list.length = 0; EnemyShots.waves.length = 0; EnemyShots.rocks.length = 0;
-  Particles.list.length = 0; Popups.list.length = 0;
+  Particles.list.length = 0; Particles.sparks.length = 0; Particles.smoke.length = 0; Popups.list.length = 0;
   Effects.clear();
   for (const e of G.enemies) Enemies.pool.push(e);
   G.enemies.length = 0;
@@ -149,6 +189,7 @@ function startRun(charId) {
   cleanupRun();
   hidePreview();
   const charDef = CHARACTERS.find((c) => c.id === charId) || CHARACTERS[0];
+  // falls bereits ein Lauf aktiv war, Kamera und Takt zurücksetzen
   Settings.char = charDef.id; saveSettings();
   G = newRunState(charDef);
   G.player = createPlayer(charDef);
@@ -158,7 +199,9 @@ function startRun(charId) {
   addWeapon(charDef.weapons[0]);
   placeChestsAndShrines();
   G.camT.set(0, G.player.y + 1.4, 0);
+  App.acc = 0;
   Input.reset();
+  UI.wipe();
   App.state = 'playing';
   Sound.init();
   Music.intensity = 0; Music.start();
@@ -234,7 +277,7 @@ function updateWorldObjects(dt) {
   const p = G.player;
   for (let i = G.chests.length - 1; i >= 0; i--) {
     const c = G.chests[i], u = c.mesh.userData;
-    u.glow.material.opacity = c.opened ? 0 : 0.16 + Math.sin(G.time * 3 + i) * 0.06;
+    u.glow.material.opacity = c.opened ? 0 : 0.2 + Math.sin(G.time * 3 + i) * 0.07;
     if (c.opened) {
       c.openT += dt;
       u.lid.rotation.x = -Math.min(1, c.openT * 4) * 1.9;
@@ -271,7 +314,7 @@ function updateWorldObjects(dt) {
     u.fill.scale.setScalar(Math.max(0.001, s.charge));
     if (s.charge >= 1) {
       s.used = true;
-      u.crystalMat.color.set(0x77737f); u.crystalMat.emissive.set(0x111111);
+      u.crystalMat.color.set(0x77737f); u.crystalMat.emissive.set(0x111111); u.crystalMat.emissiveIntensity = 0.2;
       u.ring.material.opacity = 0.1; u.fill.visible = false;
       Sound.chest();
       ringFx(s.x, s.z, 6, 0xc58bff, 0.6, 0.2);
@@ -541,101 +584,169 @@ function quitToMenu() {
   UI.showHud(false);
   App.state = 'title';
   UI.showScreen('title');
-  showPreview(Settings.char);
+  showPreview();
 }
 
 // ---------- Kamera ----------
-function updateCamera(dt) {
+// Gefedert: folgt dem Spieler mit leichtem Vorausblick, Drehung und Neigung werden geglättet.
+function updateCamera(dt, a) {
   const p = G.player, cam = W.camera;
-  const portrait = window.innerHeight > window.innerWidth;
-  const dist = portrait ? 14 : 11;
+  const portrait = View.portrait;
+  const px = ilerp(p.px, p.x, a), py = ilerp(p.py, p.y, a), pz = ilerp(p.pz, p.z, a);
   if (Settings.autoCam && p.moving && G.camTouched <= 0 && Input.cam.id === null) {
-    G.camYaw += angleDiff(G.camYaw, p.facing + Math.PI) * Math.min(1, dt * 1.2);
+    G.camYawT += angleDiff(G.camYawT, p.facing + Math.PI) * Math.min(1, dt * 1.2);
   }
   G.camTouched -= dt;
+  const ky = 1 - Math.exp(-dt * 16);
+  G.camYaw += angleDiff(G.camYaw, G.camYawT) * ky;
+  G.camPitch += (G.camPitchT - G.camPitch) * ky;
+  // Vorausblick in Laufrichtung, weich
+  const lk = 1 - Math.exp(-dt * 3);
+  G.look.x += (p.vx * 0.22 - G.look.x) * lk;
+  G.look.y += (p.vz * 0.22 - G.look.y) * lk;
   const T = G.camT;
-  T.x += (p.x - T.x) * Math.min(1, dt * 14);
-  T.z += (p.z - T.z) * Math.min(1, dt * 14);
-  T.y += (p.y + 1.4 - T.y) * Math.min(1, dt * 7);
+  const kxz = 1 - Math.exp(-dt * 12), ky2 = 1 - Math.exp(-dt * 6);
+  T.x += (px + G.look.x - T.x) * kxz;
+  T.z += (pz + G.look.y - T.z) * kxz;
+  T.y += (py + 1.4 - T.y) * ky2;
+  const bossNear = G.bosses.some((b) => b.alive && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 900);
+  const dist = (portrait ? 13.5 : 10.5) + (bossNear ? 2.5 : 0);
   const pitch = G.camPitch;
   let cx = T.x + Math.sin(G.camYaw) * Math.cos(pitch) * dist;
   let cz = T.z + Math.cos(G.camYaw) * Math.cos(pitch) * dist;
   let cy = T.y + Math.sin(pitch) * dist;
   cy = Math.max(cy, groundHeight(cx, cz) + 1.2);
-  if (G.shake > 0.01) {
-    const s = G.shake;
-    cx += rand(-s, s); cy += rand(-s, s); cz += rand(-s, s);
-    G.shake *= Math.exp(-7 * dt);
+  // Wackeln: weiches Rauschen statt Zufallssprüngen
+  G.shake = Math.max(0, G.shake - dt * 1.6);
+  if (G.shake > 0) {
+    const s = G.shake * G.shake * 0.9, t = performance.now() / 1000;
+    cx += (Math.sin(t * 37) + Math.sin(t * 23.3)) * 0.5 * s;
+    cy += (Math.sin(t * 31.7) + Math.sin(t * 19.1)) * 0.5 * s;
+    cz += (Math.sin(t * 29.3) + Math.sin(t * 41.9)) * 0.5 * s;
   }
-  cam.fov = portrait ? 70 : 62;
+  G.camKick = Math.max(0, G.camKick - dt * 3);
+  const fovT = (portrait ? 68 : 58) + (p.dashT > 0 ? 8 : 0) + G.camKick * 4;
+  G.camFov += (fovT - G.camFov) * (1 - Math.exp(-dt * 8));
+  cam.fov = G.camFov;
   cam.position.set(cx, cy, cz);
   cam.lookAt(T.x, T.y + 0.5, T.z);
 }
 
-// ---------- Menüszene ----------
-function showPreview(id) {
-  if (App.previewId === id && App.preview) return;
-  hidePreview();
-  const g = buildHero(id);
-  g.position.set(0, groundHeight(0, 0), 0);
-  W.scene.add(g);
-  App.preview = g; App.previewId = id;
-  if (!App.pedestal) {
-    const ped = new THREE.Group();
-    shape(ped, GEO.cyl, heroMat(0xb9b2a3), 2.6, 0.3, 2.6, 0, 0.15, 0);
-    shape(ped, GEO.cyl, heroMat(0x9c9586), 3.0, 0.15, 3.0, 0, 0.05, 0);
-    ped.position.set(0, groundHeight(0, 0) - 0.05, 0);
-    W.scene.add(ped);
-    App.pedestal = ped;
-  }
-  App.preview.position.y = App.pedestal.position.y + 0.3;
-  App.pedestal.visible = true;
+// ---------- Menüszene: alle Helden im Halbkreis, in der Auswahl nur der gewählte ----------
+const Menu = { heroes: {}, pedestal: null, built: false };
+function buildMenuScene() {
+  if (Menu.built) return;
+  Menu.built = true;
+  const gh = groundHeight(0, 0);
+  const ped = new THREE.Group();
+  part(ped, GEO.cyl12, mat({ color: 0xcfc6b3, rough: 0.9 }), 2.6, 0.3, 2.6, 0, 0.15, 0).receiveShadow = true;
+  part(ped, GEO.cyl12, mat({ color: 0xa79f8c, rough: 0.95 }), 3.1, 0.16, 3.1, 0, 0.05, 0).receiveShadow = true;
+  ped.position.set(0, gh - 0.05, 0);
+  W.scene.add(ped);
+  Menu.pedestal = ped;
+  CHARACTERS.forEach((c, i) => {
+    const h = buildHero(c.id);
+    W.scene.add(h);
+    h.userData.slot = i;
+    h.userData.phase = i * 1.3;
+    Menu.heroes[c.id] = h;
+  });
 }
+function showPreview() { buildMenuScene(); Menu.pedestal.visible = true; for (const id in Menu.heroes) Menu.heroes[id].visible = true; }
 function hidePreview() {
-  if (App.preview) W.scene.remove(App.preview);
-  App.preview = null; App.previewId = null;
-  if (App.pedestal) App.pedestal.visible = false;
+  if (!Menu.built) return;
+  Menu.pedestal.visible = false;
+  for (const id in Menu.heroes) Menu.heroes[id].visible = false;
 }
-const menuSlimes = Array.from({ length: 7 }, (_, i) => ({ a: (i / 7) * TAU, r: 5 + (i % 3) * 1.6, s: 0.25 + (i % 4) * 0.06, ph: i * 1.7 }));
+const menuSlimes = Array.from({ length: 7 }, (_, i) => ({ a: (i / 7) * TAU, r: 6.5 + (i % 3) * 1.6, s: 0.22 + (i % 4) * 0.05, ph: i * 1.7 }));
 function updateMenuScene(dt) {
   App.menuT += dt;
   const t = App.menuT, cam = W.camera, gh = groundHeight(0, 0);
-  const portrait = window.innerHeight > window.innerWidth;
-  if (App.state === 'select') {
-    const d = portrait ? 7.5 : 5.6;
-    cam.fov = portrait ? 60 : 50;
-    cam.position.set(Math.sin(t * 0.15) * 0.8, gh + 2.1, d);
-    cam.lookAt(portrait ? 0 : 1.7, gh + (portrait ? 0.4 : 1.25), 0);
+  const portrait = View.portrait;
+  const select = App.state === 'select';
+  if (select) {
+    const d = portrait ? 7.2 : 5.4;
+    cam.fov = portrait ? 58 : 48;
+    cam.position.set(Math.sin(t * 0.15) * 0.6, gh + 2.0, d);
+    cam.lookAt(portrait ? 0 : 1.6, gh + (portrait ? 0.5 : 1.15), 0);
   } else {
-    cam.fov = portrait ? 70 : 58;
-    const a = t * 0.06;
-    cam.position.set(Math.sin(a) * 11, gh + 4.2, Math.cos(a) * 11);
-    cam.lookAt(0, gh + 1.6, 0);
+    cam.fov = portrait ? 66 : 52;
+    const ang = Math.sin(t * 0.08) * 0.35;
+    cam.position.set(Math.sin(ang) * 9.5, gh + 3.3, Math.cos(ang) * 9.5);
+    cam.lookAt(portrait ? 0 : -2.2, gh + 1.25, 0);
   }
-  if (App.preview) {
-    App.preview.rotation.y = App.state === 'select' ? Math.sin(t * 0.7) * 0.6 : t * 0.4;
-    const u = App.preview.userData;
-    u.armR.rotation.x = Math.sin(t * 2) * 0.15;
-    u.head.position.y = u.head.userData.baseY + Math.sin(t * 2) * 0.03;
-  }
+  const sel = UI.selected;
+  CHARACTERS.forEach((c, i) => {
+    const h = Menu.heroes[c.id];
+    if (!h) return;
+    const u = h.userData;
+    let x, z, ry;
+    if (select) {
+      h.visible = c.id === sel;
+      x = 0; z = 0; ry = Math.sin(t * 0.7) * 0.5;
+    } else {
+      h.visible = true;
+      const a = (i - 2) * 0.42;
+      x = Math.sin(a) * 4.2; z = -Math.cos(a) * 4.2 + 4.2 - (i === 2 ? 0 : 0.6);
+      ry = -a * 0.6 + Math.sin(t * 0.6 + u.phase) * 0.25;
+    }
+    const y = select ? Menu.pedestal.position.y + 0.3 : groundHeight(x, z);
+    // kleiner Freudensprung im Titelbild
+    const hop = select ? 0 : Math.max(0, Math.sin(t * 2.2 + u.phase * 2.1)) ** 8 * 0.6;
+    h.position.set(x, y + hop, z);
+    h.rotation.y = ry;
+    u.armR.rotation.x = Math.sin(t * 2 + u.phase) * 0.18 - (hop > 0.05 ? 0.8 : 0);
+    u.armL.rotation.x = -Math.sin(t * 2 + u.phase) * 0.12;
+    u.armL.rotation.z = hop > 0.05 ? -0.8 : 0; u.armR.rotation.z = hop > 0.05 ? 0.8 : 0;
+    u.rig.scale.y = 1 + Math.sin(t * 2.6 + u.phase) * 0.02;
+    u.head.position.y = u.head.userData.baseY + Math.sin(t * 2 + u.phase) * 0.025;
+    const blink = ((t + u.phase) % 3.7) < 0.12;
+    for (const e of u.eyes) e.scale.y = blink ? 0.12 : 1;
+  });
+  Menu.pedestal.visible = select;
   const inst = Enemies.inst.slime;
   inst.begin();
   for (const s of menuSlimes) {
-    const a = s.a + t * s.s, x = Math.sin(a) * s.r, z = Math.cos(a) * s.r;
+    const a = s.a + t * s.s, x = Math.sin(a) * s.r, z = Math.cos(a) * s.r - 2;
     const b = Math.sin(t * 9 + s.ph);
     inst.add(x, groundHeight(x, z) + Math.max(0, Math.sin(t * 4.5 + s.ph)) * 0.5, z, 0, a + Math.PI / 2, 0, 1 - b * 0.07, 1 + b * 0.14, 1 - b * 0.07, 1, 1, 1);
   }
   inst.end();
+  updateSun(0, 0);
+  updateGrass(0, 0, -99);
 }
 
-function renderGameObjects() {
-  Enemies.render();
-  renderPickups();
-  renderProjectiles();
-  renderEnemyShots();
+function renderGameObjects(a, dt) {
+  renderPlayer(a, dt);
+  renderBosses(a);
+  Enemies.render(a);
+  renderPickups(a);
+  renderProjectiles(a);
+  renderEnemyShots(a);
+  // Truhen und Schreine leuchten
+  for (const c of G.chests) {
+    if (c.opened) continue;
+    if (Math.random() < 0.08) {
+      const an = Math.random() * TAU;
+      spawnSpark(c.x + Math.sin(an) * 0.8, groundHeight(c.x, c.z) + 0.4, c.z + Math.cos(an) * 0.8, 0, rand(1.2, 2.5), 0, 0.9, 0.35, c.free ? 0xd9b8ff : 0xffe27a, 0);
+    }
+  }
+  for (const s of G.shrines) {
+    if (s.used) continue;
+    const y = groundHeight(s.x, s.z) + 2.8 + Math.sin(G.time * 2) * 0.15;
+    FX.glow.add(s.x, y, s.z, 4 + s.charge * 3, 0.75, 0.5, 1, 0.45 + s.charge * 0.3);
+  }
 }
 
 // ---------- Hauptschleife ----------
+// Fester Takt (60 Schritte pro Sekunde) + Zwischenwerte beim Zeichnen = gleichmäßige Bewegung,
+// egal ob das Handy mit 30, 60 oder 120 Bildern pro Sekunde läuft.
+const SIM_DT = 1 / 60;
+function savePrev() {
+  const p = G.player;
+  p.px = p.x; p.py = p.y; p.pz = p.z; p.pfacing = p.facing;
+  for (const e of G.enemies) { e.px = e.x; e.py = e.y; e.pz = e.z; e.prot = e.rot; }
+}
 function step(h) {
   // Jedes System prüft erneut: Sieg, Niederlage oder eine Kartenwahl beenden den Schritt.
   const on = () => G.state === 'playing';
@@ -651,9 +762,6 @@ function step(h) {
   if (on()) updateWorldObjects(h);
   if (on()) updateSpawner(h);
   Enemies.removeDead();
-  updateParticles(h);
-  Effects.update(h);
-  updatePopups(h);
 }
 
 function loop(now) {
@@ -663,33 +771,55 @@ function loop(now) {
   if (!(dt > 0)) dt = 0;
   dt = Math.min(dt, 0.1);
   trackFps(dt);
+  GFX.time += dt;
+  GFX.timeUniform.value = GFX.time;
+  FX.glow.begin(); FX.soft.begin();
+  let alpha = 1, vdt = dt;
   if (G && (App.state === 'playing' || App.state === 'ending')) {
     Input.update(dt);
-    const sdt = dt * (App.state === 'ending' ? 0.3 : G.timeScale);
-    const steps = Math.max(1, Math.ceil(sdt / (1 / 30)));
-    const h = sdt / steps;
-    for (let i = 0; i < steps && G && (G.state === 'playing' || G.state === 'ending'); i++) {
-      step(h);
-      if (G.state === 'choice') break;
+    const scale = App.state === 'ending' ? 0.3 : G.timeScale;
+    vdt = dt * scale;
+    App.acc += vdt;
+    const maxSteps = Math.ceil(6 * Math.max(1, scale));
+    let n = 0;
+    while (App.acc >= SIM_DT && n < maxSteps && G && (G.state === 'playing' || G.state === 'ending')) {
+      savePrev();
+      step(SIM_DT);
+      App.acc -= SIM_DT; n++;
+      if (G.state === 'choice') { App.acc = 0; break; }
     }
+    if (n >= maxSteps) App.acc = Math.min(App.acc, SIM_DT);
+    alpha = clamp(App.acc / SIM_DT, 0, 1);
     if (G && G.state === 'playing' && G.pendingLevels > 0) openChoice('level', 0);
     if (G && App.state === 'ending') {
       G.endT -= dt;
       if (G.endT <= 0) { G.state = 'over'; App.state = 'over'; Music.stop(); UI.showGameOver(); }
     }
-  }
+  } else if (G) vdt = 0;
+  FX.dt = SIM_DT;
   if (G) {
-    updateCamera(dt);
-    renderGameObjects();
+    updateParticles(vdt);
+    Effects.update(vdt);
+    updatePopups(vdt);
+    renderGameObjects(alpha, vdt);
+    updateCamera(dt, alpha);
+    const p = G.player;
+    updateSun(ilerp(p.px, p.x, alpha), ilerp(p.pz, p.z, alpha));
+    updateGrass(ilerp(p.px, p.x, alpha), ilerp(p.pz, p.z, alpha), p.y);
   } else {
     updateMenuScene(dt);
+    updateParticles(dt);
   }
-  for (const c of W.clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 300) c.position.x = -300; }
-  W.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  moveClouds(dt);
+  W.sky.position.copy(W.camera.position);
+  W.camera.aspect = View.w / Math.max(1, View.h);
   W.camera.updateProjectionMatrix();
-  W.renderer.render(W.scene, W.camera);
+  const scaleU = W.renderer.getPixelRatio() * View.h / (2 * Math.tan((W.camera.fov * Math.PI) / 360));
+  FX.glow.uniforms.scale.value = scaleU; FX.soft.uniforms.scale.value = scaleU;
+  FX.glow.end(); FX.soft.end();
+  renderFrame();
   Overlay.draw();
-  if (G) UI.updateHud();
+  if (G) UI.updateHud(dt);
 }
 
 // Passt die Auflösung an, wenn das Handy nicht hinterherkommt.
@@ -699,18 +829,21 @@ function trackFps(dt) {
     App.fps = App.frames / App.frameAcc;
     App.frameAcc = 0; App.frames = 0;
     if (App.state === 'playing' && G && G.timeScale === 1) {
-      if (App.fps < 40 && App.autoQ > -0.5) { App.autoQ -= 0.15; applyResolution(); }
-      else if (App.fps > 57 && App.autoQ < 0) { App.autoQ = Math.min(0, App.autoQ + 0.05); applyResolution(); }
+      if (App.fps < 42 && App.autoQ > -0.45) { App.autoQ -= 0.12; applyResolution(); }
+      else if (App.fps > 57 && App.autoQ < 0) { App.autoQ = Math.min(0, App.autoQ + 0.04); applyResolution(); }
     }
   }
 }
 function applyResolution() {
+  View.update();
   const q = QUALITY[Settings.quality];
   const dpr = window.devicePixelRatio || 1;
   const pr = Math.max(0.5, Math.min(dpr, q.pixelRatio) * (1 + App.autoQ));
   W.renderer.setPixelRatio(pr);
-  W.renderer.setSize(window.innerWidth, window.innerHeight, false);
+  W.renderer.setSize(View.w, View.h, false);
+  Post.resize(View.w, View.h, pr);
   Overlay.resize();
+  if (typeof UI !== 'undefined' && UI.measureSafe) UI.measureSafe();
 }
 
 let wakeLock = null;
@@ -726,56 +859,54 @@ const Overlay = {
   init(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.resize(); },
   resize() {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.round(window.innerWidth * this.dpr);
-    this.canvas.height = Math.round(window.innerHeight * this.dpr);
+    this.canvas.width = Math.round(View.w * this.dpr);
+    this.canvas.height = Math.round(View.h * this.dpr);
   },
   project(x, y, z) {
     const v = this.v.set(x, y, z).project(W.camera);
     if (v.z > 1) return null;
-    return [(v.x * 0.5 + 0.5) * window.innerWidth, (-v.y * 0.5 + 0.5) * window.innerHeight];
+    return [(v.x * 0.5 + 0.5) * View.w, (-v.y * 0.5 + 0.5) * View.h];
+  },
+  label(ctx, txt, x, y, size, fill) {
+    ctx.font = `900 ${size}px Nunito, system-ui, sans-serif`;
+    ctx.lineWidth = Math.max(3, size * 0.28); ctx.strokeStyle = 'rgba(20,14,40,0.9)';
+    ctx.strokeText(txt, x, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(txt, x, y);
   },
   draw() {
-    const ctx = this.ctx, W2 = window.innerWidth, H2 = window.innerHeight;
+    const ctx = this.ctx, W2 = View.w, H2 = View.h;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, W2, H2);
     if (!G) return;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    // Truhen-Preise und Schrein-Fortschritt
     const p = G.player;
     for (const c of G.chests) {
       if (c.opened || (c.x - p.x) ** 2 + (c.z - p.z) ** 2 > 26 * 26) continue;
       const s = this.project(c.x, groundHeight(c.x, c.z) + 2.0, c.z);
       if (!s) continue;
       const price = c.free ? 0 : chestPrice();
-      const txt = c.free ? 'Gratis' : `${price} Gold`;
-      ctx.font = '900 14px Nunito, system-ui, sans-serif';
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,14,40,0.85)';
-      ctx.strokeText(txt, s[0], s[1]);
-      ctx.fillStyle = c.free ? '#d9b8ff' : G.gold >= price ? '#ffd23f' : '#ff8a8a';
-      ctx.fillText(txt, s[0], s[1]);
+      this.label(ctx, c.free ? 'Gratis' : `${price} Gold`, s[0], s[1], 14, c.free ? '#e2c8ff' : G.gold >= price ? '#ffd23f' : '#ff9a9a');
     }
     for (const sh of G.shrines) {
       if (sh.used || sh.charge <= 0) continue;
-      const s = this.project(sh.x, groundHeight(sh.x, sh.z) + 4.2, sh.z);
+      const s = this.project(sh.x, groundHeight(sh.x, sh.z) + 4.4, sh.z);
       if (!s) continue;
-      ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(20,14,40,0.7)';
-      ctx.beginPath(); ctx.arc(s[0], s[1], 16, 0, TAU); ctx.stroke();
-      ctx.strokeStyle = '#c58bff';
-      ctx.beginPath(); ctx.arc(s[0], s[1], 16, -Math.PI / 2, -Math.PI / 2 + TAU * sh.charge); ctx.stroke();
+      ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(20,14,40,0.7)';
+      ctx.beginPath(); ctx.arc(s[0], s[1], 17, 0, TAU); ctx.stroke();
+      ctx.lineWidth = 5; ctx.strokeStyle = '#c58bff';
+      ctx.beginPath(); ctx.arc(s[0], s[1], 17, -Math.PI / 2, -Math.PI / 2 + TAU * sh.charge); ctx.stroke();
     }
-    // Schadenszahlen
+    // Schadenszahlen: springen kurz auf und schweben weg
     for (const n of Popups.list) {
       const s = this.project(n.x, n.y, n.z);
       if (!s) continue;
-      const k = n.life / n.max;
-      const size = (n.crit ? 20 : 15) * (k > 0.8 ? 1 + (k - 0.8) * 2 : 1);
-      ctx.globalAlpha = Math.min(1, k * 2.5);
-      ctx.font = `900 ${size}px Nunito, system-ui, sans-serif`;
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,14,40,0.9)';
-      ctx.strokeText(n.text, s[0], s[1]);
-      ctx.fillStyle = n.color;
-      ctx.fillText(n.text, s[0], s[1]);
+      const k = n.life / n.max, age = 1 - k;
+      const pop = age < 0.12 ? 0.6 + (age / 0.12) * 0.75 : age < 0.22 ? 1.35 - ((age - 0.12) / 0.1) * 0.35 : 1;
+      const size = (n.crit ? 21 : 15) * pop;
+      ctx.globalAlpha = Math.min(1, k * 3);
+      this.label(ctx, n.text, s[0], s[1], size, n.color);
     }
     ctx.globalAlpha = 1;
     // Boss außerhalb des Bildes: Pfeil am Rand
@@ -787,9 +918,10 @@ const Overlay = {
         const dx = b.x - p.x, dz = b.z - p.z, c = Math.cos(G.camYaw), sn = Math.sin(G.camYaw);
         const ang = Math.atan2(dx * c - dz * sn, -dx * sn - dz * c); // 0 = oben, positiv = rechts
         const x = W2 / 2 + Math.sin(ang) * (W2 / 2 - 40), y = H2 / 2 - Math.cos(ang) * (H2 / 2 - 50);
-        ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-        ctx.fillStyle = '#ff4d5a'; ctx.strokeStyle = 'rgba(20,14,40,0.9)'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(12, 10); ctx.lineTo(-12, 10); ctx.closePath(); ctx.stroke(); ctx.fill();
+        const pulse = 1 + Math.sin(performance.now() / 120) * 0.12;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(pulse, pulse);
+        ctx.fillStyle = '#ff4d5a'; ctx.strokeStyle = 'rgba(20,14,40,0.9)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(14, 11); ctx.lineTo(-14, 11); ctx.closePath(); ctx.stroke(); ctx.fill();
         ctx.restore();
       }
     }
@@ -797,42 +929,48 @@ const Overlay = {
     if (App.state === 'playing' || App.state === 'paused' || App.state === 'choice') {
       const j = Input.joy;
       const coarse = Input.touchUsed || UI.coarse;
+      const drawStick = (ox, oy, kx, ky, alpha) => {
+        const g = ctx.createRadialGradient(ox, oy, 10, ox, oy, 60);
+        g.addColorStop(0, `rgba(27,21,48,${0.05 * alpha})`); g.addColorStop(1, `rgba(27,21,48,${0.35 * alpha})`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(ox, oy, 58, 0, TAU); ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,246,224,${0.5 * alpha})`;
+        ctx.beginPath(); ctx.arc(ox, oy, 58, 0, TAU); ctx.stroke();
+        const kg = ctx.createRadialGradient(kx - 8, ky - 8, 4, kx, ky, 28);
+        kg.addColorStop(0, `rgba(255,236,150,${0.95 * alpha})`); kg.addColorStop(1, `rgba(230,160,20,${0.9 * alpha})`);
+        ctx.fillStyle = kg;
+        ctx.beginPath(); ctx.arc(kx, ky, 27, 0, TAU); ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = `rgba(27,21,48,${0.8 * alpha})`; ctx.stroke();
+      };
       if (j.active) {
         const dx = j.x - j.ox, dy = j.y - j.oy, d = Math.hypot(dx, dy), k = d > 56 ? 56 / d : 1;
-        ctx.fillStyle = 'rgba(255,246,224,0.12)'; ctx.strokeStyle = 'rgba(255,246,224,0.55)'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(j.ox, j.oy, 56, 0, TAU); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = 'rgba(255,207,51,0.85)';
-        ctx.beginPath(); ctx.arc(j.ox + dx * k, j.oy + dy * k, 26, 0, TAU); ctx.fill();
+        drawStick(j.ox, j.oy, j.ox + dx * k, j.oy + dy * k, 1);
       } else if (coarse) {
-        const x = 110 + UI.safeLeft(), y = H2 - 105;
-        ctx.strokeStyle = 'rgba(255,246,224,0.22)'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(x, y, 56, 0, TAU); ctx.stroke();
-        ctx.fillStyle = 'rgba(255,246,224,0.16)';
-        ctx.beginPath(); ctx.arc(x, y, 26, 0, TAU); ctx.fill();
+        const x = 112 + UI.safeLeft(), y = H2 - 108;
+        drawStick(x, y, x, y, 0.4);
       }
     }
     this.drawMinimap(ctx, W2);
   },
   drawMinimap(ctx, W2) {
-    const p = G.player, R = W2 < 700 ? 46 : 58;
-    const cx = W2 - R - 14 - UI.safeRight(), cy = 64 + R;
+    const p = G.player, R = W2 < 700 ? 46 : 56;
+    const cx = W2 - R - 14 - UI.safeRight(), cy = 66 + R;
     const scale = R / 62;
     const yaw = G.camYaw;
-    // Kamera-Blickrichtung zeigt nach oben
     const toMap = (x, z) => {
       const dx = x - p.x, dz = z - p.z;
       const c = Math.cos(yaw), s = Math.sin(yaw);
-      const rx = dx * c - dz * s, rz = dx * s + dz * c;
-      return [rx * scale, rz * scale];
+      return [(dx * c - dz * s) * scale, (dx * s + dz * c) * scale];
     };
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU);
-    ctx.fillStyle = 'rgba(27,21,48,0.72)'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,246,224,0.35)'; ctx.stroke();
+    const bg = ctx.createRadialGradient(cx, cy, 4, cx, cy, R);
+    bg.addColorStop(0, 'rgba(70,110,70,0.75)'); bg.addColorStop(1, 'rgba(27,21,48,0.8)');
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(27,21,48,0.95)'; ctx.stroke();
     ctx.clip();
-    // Kartenrand
     const H = CONFIG.MAP_HALF;
-    ctx.strokeStyle = 'rgba(255,120,90,0.6)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,140,100,0.7)'; ctx.lineWidth = 2;
     ctx.beginPath();
     [[-H, -H], [H, -H], [H, H], [-H, H]].forEach(([x, z], i) => { const m = toMap(x, z); if (i) ctx.lineTo(cx + m[0], cy + m[1]); else ctx.moveTo(cx + m[0], cy + m[1]); });
     ctx.closePath(); ctx.stroke();
@@ -841,6 +979,7 @@ const Overlay = {
       const d = Math.hypot(mx, my);
       if (d > R - r - 2) { if (!edge) return; mx *= (R - r - 2) / d; my *= (R - r - 2) / d; }
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx + mx, cy + my, r, 0, TAU); ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,14,40,0.8)'; ctx.stroke();
     };
     for (const e of G.enemies) if (e.alive && e.elite) dot(e.x, e.z, 2.5, '#ffb347', false);
     for (const s of G.shrines) if (!s.used) dot(s.x, s.z, 3.5, '#c58bff', true);
@@ -848,10 +987,9 @@ const Overlay = {
     for (const c of G.chests) if (!c.opened) dot(c.x, c.z, 3.5, c.free ? '#d9b8ff' : G.gold >= price ? '#ffd23f' : '#a08a4a', true);
     for (const b of G.bosses) if (b.alive) dot(b.x, b.z, 5, '#ff4d5a', true);
     ctx.restore();
-    // Spieler
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI - (p.facing - yaw));
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = 'rgba(20,14,40,0.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.stroke(); ctx.fill();
     ctx.restore();
   },
 };
@@ -891,6 +1029,7 @@ function botMove() {
 
 // ---------- Start ----------
 function boot() {
+  View.update();
   const canvas = document.getElementById('gl');
   initWorld(canvas);
   Grid.init();
@@ -901,13 +1040,15 @@ function boot() {
   initWeaponVisuals();
   Overlay.init(document.getElementById('overlay'));
   Input.init(document.getElementById('touch'));
+  renderPortraits();
   applyResolution();
   window.addEventListener('resize', applyResolution);
+  window.addEventListener('orientationchange', () => setTimeout(applyResolution, 200));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { pauseGame(); if (Sound.ctx && Sound.ctx.state === 'running') Sound.ctx.suspend(); } else if (Sound.ctx) Sound.ctx.resume();
   });
   UI.init();
-  showPreview(Settings.char);
+  showPreview();
   App.state = 'title';
   UI.showScreen('title');
   App.lastT = performance.now();

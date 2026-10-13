@@ -5,6 +5,7 @@
 const CONFIG = {
   ROUND_SECONDS: 15 * 60, // 15 Minuten pro Runde (Megabonk: 10)
   MAP_HALF: 104,          // begehbarer Bereich: -MAP_HALF … +MAP_HALF
+  WATER_LEVEL: -3.3,      // Teiche in den Senken
   WORLD_HALF: 140,        // Gelände inkl. Randgebirge
   MAX_ENEMIES: 280,
   MAX_WEAPONS: 3,

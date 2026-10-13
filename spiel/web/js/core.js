@@ -60,13 +60,17 @@ function groundHeight(x, z) {
   const d = Math.hypot(x, z);
   h *= 0.25 + 0.75 * smoothstep(5, 26, d);
   const e = Math.max(Math.abs(x), Math.abs(z));
-  h += smoothstep(CONFIG.MAP_HALF - 4, CONFIG.MAP_HALF + 22, e) * 26;
+  h += smoothstep(CONFIG.MAP_HALF - 2, CONFIG.MAP_HALF + 30, e) * 20;
+  // Teiche flach halten, damit man hindurchwaten kann
+  const wl = CONFIG.WATER_LEVEL;
+  if (h < wl) h = wl - (wl - h) * 0.3;
   return h;
 }
 
 // ---------- Geometrie ----------
 // Fügt mehrere einfache Formen zu einer Geometrie mit Vertex-Farben zusammen,
 // damit ein Gegnertyp als ein einziges InstancedMesh gezeichnet werden kann.
+// Teile sind glatt schattiert; flat: true ergibt Facetten (Felsen, Kristalle).
 function mergeParts(parts) {
   const pos = [], nor = [], col = [];
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
@@ -78,7 +82,7 @@ function mergeParts(parts) {
     m.compose(new THREE.Vector3(...(p.pos || [0, 0, 0])), q, new THREE.Vector3(...(p.scale || [1, 1, 1])));
     g.applyMatrix4(m);
     if (g.index) g = g.toNonIndexed();
-    g.computeVertexNormals();
+    if (p.flat) g.computeVertexNormals();
     c.set(p.color);
     const pa = g.attributes.position.array, na = g.attributes.normal.array;
     for (let i = 0; i < pa.length; i += 3) {
@@ -97,6 +101,14 @@ function mergeParts(parts) {
 }
 const GEO = {
   box: new THREE.BoxGeometry(1, 1, 1),
+  rbox: roundedBox(1, 1, 1, 0.18, 2),
+  ball1: new THREE.IcosahedronGeometry(0.5, 1),
+  ball2: new THREE.IcosahedronGeometry(0.5, 2),
+  ball3: new THREE.IcosahedronGeometry(0.5, 3),
+  capsule: new THREE.CapsuleGeometry(0.5, 1, 4, 10),
+  cyl12: new THREE.CylinderGeometry(0.5, 0.5, 1, 12),
+  cone12: new THREE.ConeGeometry(0.5, 1, 12),
+  torus: new THREE.TorusGeometry(0.5, 0.15, 8, 20),
   sphere: new THREE.IcosahedronGeometry(0.5, 1),
   ball: new THREE.IcosahedronGeometry(0.5, 0),
   cone: new THREE.ConeGeometry(0.5, 1, 7),
@@ -105,6 +117,22 @@ const GEO = {
   dodeca: new THREE.DodecahedronGeometry(0.5, 0),
   tetra: new THREE.TetrahedronGeometry(0.5, 0),
 };
+
+// Würfel mit abgerundeten Kanten (für Spielzeug-Optik)
+function roundedBox(w, h, d, r, seg) {
+  const g = new THREE.BoxGeometry(w, h, d, seg + 2, seg + 2, seg + 2);
+  const p = g.attributes.position, v = new THREE.Vector3(), inner = new THREE.Vector3();
+  const hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r;
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    inner.set(clamp(v.x, -hw, hw), clamp(v.y, -hh, hh), clamp(v.z, -hd, hd));
+    v.sub(inner);
+    if (v.lengthSq() > 0) v.setLength(r);
+    p.setXYZ(i, inner.x + v.x, inner.y + v.y, inner.z + v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
 
 // ---------- Speicher ----------
 const Store = {
@@ -122,13 +150,13 @@ const SETTINGS_KEY = 'rumms.settings.v1';
 const RECORDS_KEY = 'rumms.records.v1';
 const Settings = Store.get(SETTINGS_KEY, {
   quality: 'mid', music: true, sfx: true, vibrate: true, numbers: true,
-  sensitivity: 1, autoCam: false, char: 'knight',
+  sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto',
 });
 function saveSettings() { Store.set(SETTINGS_KEY, Settings); }
 const QUALITY = {
-  low: { pixelRatio: 0.75, particles: 160, numbers: 24, shadows: false },
-  mid: { pixelRatio: 1.25, particles: 320, numbers: 40, shadows: true },
-  high: { pixelRatio: 2, particles: 500, numbers: 60, shadows: true },
+  low: { pixelRatio: 0.85, particles: 160, numbers: 24, grass: 0, glow: 500 },
+  mid: { pixelRatio: 1.5, particles: 300, numbers: 40, grass: 4200, glow: 1200 },
+  high: { pixelRatio: 2, particles: 480, numbers: 60, grass: 8000, glow: 1800 },
 };
 
 // ---------- Ton ----------
