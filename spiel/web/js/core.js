@@ -153,6 +153,10 @@ const Settings = Store.get(SETTINGS_KEY, {
   sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto',
 });
 function saveSettings() { Store.set(SETTINGS_KEY, Settings); }
+// Fortschritt über Runden hinweg: Sterne, Werkstatt, Erfolge, Hüte
+const PROFILE_KEY = 'rumms.profile.v1';
+const Profile = Store.get(PROFILE_KEY, { stars: 0, starsTotal: 0, shop: {}, ach: {}, hats: {}, totals: {}, nightmare: false });
+function saveProfile() { Store.set(PROFILE_KEY, Profile); }
 const QUALITY = {
   low: { pixelRatio: 0.85, particles: 160, numbers: 24, grass: 0, glow: 500 },
   mid: { pixelRatio: 1.5, particles: 300, numbers: 40, grass: 4200, glow: 1200 },

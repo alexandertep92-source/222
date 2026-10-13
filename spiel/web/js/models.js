@@ -95,10 +95,13 @@ function buildHero(id) {
     box(tool, M(0xf1e9d2), 0.02, 1.08, 0.02, 0, 0, 0);
   } else if (id === 'mage') {
     const hat = M(0x4b2a8f), star = M(0xffd166, { emissive: 0x6a4a00 }), beard = M(0xf4f1ea, { rough: 0.9 });
-    part(head, GEO.cyl12, hat, 1.18, 0.07, 1.18, 0, 0.27, 0);
-    part(head, GEO.cone12, hat, 0.7, 0.75, 0.7, 0, 0.66, -0.04, -0.12, 0, 0);
-    part(head, GEO.cone12, hat, 0.34, 0.45, 0.34, 0.1, 1.12, -0.18, -0.6, 0, -0.3);
-    part(head, GEO.oct, star, 0.16, 0.16, 0.06, 0.18, 0.5, 0.3, 0, 0, 0.6);
+    // eigener Hut in einer Gruppe, damit ein freigeschalteter Hut ihn ersetzen kann
+    const gear = new THREE.Group(); head.add(gear);
+    part(gear, GEO.cyl12, hat, 1.18, 0.07, 1.18, 0, 0.27, 0);
+    part(gear, GEO.cone12, hat, 0.7, 0.75, 0.7, 0, 0.66, -0.04, -0.12, 0, 0);
+    part(gear, GEO.cone12, hat, 0.34, 0.45, 0.34, 0.1, 1.12, -0.18, -0.6, 0, -0.3);
+    part(gear, GEO.oct, star, 0.16, 0.16, 0.06, 0.18, 0.5, 0.3, 0, 0, 0.6);
+    root.userData.gear = gear;
     part(head, GEO.cone12, beard, 0.5, 0.62, 0.32, 0, -0.42, 0.26, Math.PI, 0, 0);
     part(rig, GEO.cone12, bodyM, 0.95, 0.6, 0.8, 0, hipY - 0.12, 0);
     box(rig, M(0xffd166), 0.62, 0.08, 0.52, 0, bodyY - 0.06, 0);
@@ -142,6 +145,95 @@ function buildHero(id) {
   root.traverse((o) => { if (o.material && o.material.emissive) mats.add(o.material); });
   root.userData = Object.assign(root.userData || {}, { rig, legL, legR, armL, armR, head, body, eyes, tool, mats: [...mats], hipY });
   return root;
+}
+
+// ---------- Hüte (über Erfolge freigeschaltet) ----------
+// Höhe der Hutkrempe über der Kopfmitte, passend zur Kopfbedeckung des Helden
+const HAT_Y = { knight: 0.47, archer: 0.5, mage: 0.36, ninja: 0.45, dwarf: 0.46 };
+function buildHat(id) {
+  const g = new THREE.Group();
+  const M = (color, o = {}) => mat(Object.assign({ color, rim: true }, o));
+  const gold = M(0xffcf4a, { metal: 0.55, rough: 0.3, emissive: 0x3a2400 });
+  if (id === 'crown') {
+    part(g, GEO.cyl12, gold, 0.66, 0.2, 0.66, 0, 0.08, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU;
+      part(g, GEO.cone12, gold, 0.15, 0.26, 0.15, Math.sin(a) * 0.27, 0.3, Math.cos(a) * 0.27);
+      part(g, GEO.ball1, M(i % 2 ? 0xff3b6b : 0x46c2ff, { rough: 0.1, emissive: i % 2 ? 0x500018 : 0x002850 }), 0.09, 0.09, 0.09, Math.sin(a + 0.63) * 0.33, 0.09, Math.cos(a + 0.63) * 0.33);
+    }
+  } else if (id === 'slime') {
+    part(g, GEO.ball2, M(0x5fd34c, { rough: 0.3 }), 0.66, 0.5, 0.62, 0, 0.16, 0);
+    part(g, GEO.ball1, M(0xb6ff9a, { rough: 0.2 }), 0.18, 0.1, 0.14, 0.12, 0.34, 0.1);
+    for (const sx of [-1, 1]) {
+      part(g, GEO.ball1, M(0xffffff, { rough: 0.3 }), 0.13, 0.15, 0.06, sx * 0.1, 0.2, 0.29);
+      part(g, GEO.ball1, M(0x15151f, { rough: 0.2 }), 0.07, 0.09, 0.05, sx * 0.1, 0.19, 0.31);
+    }
+  } else if (id === 'tophat') {
+    const black = M(0x22202a, { rough: 0.5 });
+    part(g, GEO.cyl12, black, 0.95, 0.05, 0.95, 0, 0.02, 0);
+    part(g, GEO.cyl12, black, 0.58, 0.62, 0.58, 0, 0.34, 0);
+    part(g, GEO.cyl12, M(0xd9363e), 0.6, 0.12, 0.6, 0, 0.1, 0);
+  } else if (id === 'witch') {
+    const dark = M(0x1e1530, { rough: 0.6 });
+    part(g, GEO.cyl12, dark, 1.0, 0.05, 1.0, 0, 0.02, 0);
+    part(g, GEO.cone12, dark, 0.58, 0.8, 0.58, 0, 0.42, -0.03, -0.18, 0, 0);
+    part(g, GEO.cone12, dark, 0.22, 0.36, 0.22, 0, 0.9, -0.16, -0.8, 0, 0);
+    part(g, GEO.cyl12, M(0xb04ad9), 0.56, 0.1, 0.56, 0, 0.08, 0);
+    box(g, gold, 0.14, 0.12, 0.04, 0, 0.08, 0.28);
+  } else if (id === 'party') {
+    part(g, GEO.cone12, M(0xff5fa2), 0.5, 0.75, 0.5, 0, 0.36, 0);
+    part(g, GEO.cyl12, M(0x46c2ff), 0.42, 0.07, 0.42, 0, 0.14, 0);
+    part(g, GEO.cyl12, M(0xffd84a), 0.24, 0.07, 0.24, 0, 0.42, 0);
+    part(g, GEO.ball1, M(0xfff6c8), 0.18, 0.18, 0.18, 0, 0.76, 0);
+  } else if (id === 'propeller') {
+    part(g, GEO.ball2, M(0xd9363e), 0.7, 0.42, 0.7, 0, 0.02, 0);
+    part(g, GEO.ball2, M(0xffd84a), 0.36, 0.2, 0.72, 0, 0.11, 0);
+    part(g, GEO.ball2, M(0x46c2ff), 0.72, 0.2, 0.36, 0, 0.11, 0);
+    part(g, GEO.cyl12, M(0x2b2b38), 0.05, 0.16, 0.05, 0, 0.26, 0);
+    const spin = new THREE.Group(); spin.position.y = 0.34; g.add(spin);
+    box(spin, M(0xffd84a), 0.7, 0.03, 0.12, 0, 0, 0, 0.25, 0, 0);
+    box(spin, M(0x46c2ff), 0.12, 0.03, 0.7, 0, 0, 0, 0, 0, 0.25);
+    part(spin, GEO.ball1, M(0xd9363e), 0.08, 0.08, 0.08, 0, 0.02, 0);
+    g.userData.spin = spin;
+  } else if (id === 'flowers') {
+    part(g, GEO.torus, M(0x3f9e55), 0.68, 0.68, 0.68, 0, 0.04, 0, Math.PI / 2, 0, 0);
+    const cols = [0xff7aa8, 0xffd84a, 0xffffff, 0xb08aff, 0xff9a4a, 0x7fd8ff];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU;
+      part(g, GEO.ball1, M(cols[i], { rough: 0.5 }), 0.17, 0.1, 0.17, Math.sin(a) * 0.34, 0.08, Math.cos(a) * 0.34);
+      part(g, GEO.ball1, M(0xffe066), 0.06, 0.05, 0.06, Math.sin(a) * 0.34, 0.12, Math.cos(a) * 0.34);
+    }
+  } else if (id === 'mushroom') {
+    part(g, GEO.cyl12, M(0xf7dfb8), 0.6, 0.06, 0.6, 0, 0.02, 0);
+    part(g, GEO.ball2, M(0xe8423a, { rough: 0.5 }), 0.9, 0.5, 0.9, 0, 0.1, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU + 0.3;
+      part(g, GEO.ball1, M(0xfff4e0), 0.14, 0.07, 0.14, Math.sin(a) * 0.24, 0.27, Math.cos(a) * 0.24);
+    }
+    part(g, GEO.ball1, M(0xfff4e0), 0.14, 0.07, 0.14, 0, 0.35, 0);
+  } else if (id === 'halo') {
+    const glow = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffd84a, emissiveIntensity: 1.6 });
+    part(g, GEO.torus, glow, 0.6, 0.6, 0.45, 0, 0.32, 0, Math.PI / 2, 0, 0).castShadow = false;
+  } else if (id === 'devil') {
+    const red = M(0xd9282f, { rough: 0.4 });
+    for (const sx of [-1, 1]) {
+      part(g, GEO.cone12, red, 0.13, 0.3, 0.13, sx * 0.22, 0.08, 0.06, 0, 0, -sx * 0.45);
+      part(g, GEO.cone12, red, 0.08, 0.18, 0.08, sx * 0.3, 0.26, 0.06, 0, 0, -sx * 0.9);
+    }
+  }
+  return g;
+}
+// Setzt (oder entfernt) den Hut eines Heldenmodells
+function attachHat(model, charId, hatId) {
+  const u = model.userData;
+  if (u.hat) { u.head.remove(u.hat); u.hat = null; }
+  const on = !!hatId && hatId !== 'none' && !!HATS[hatId];
+  if (u.gear) u.gear.visible = !on;
+  if (!on) return;
+  const h = buildHat(hatId);
+  h.position.y = HAT_Y[charId] || 0.45;
+  u.head.add(h);
+  u.hat = h;
 }
 
 // ---------- Gegner (zusammengesetzte Geometrien für InstancedMesh) ----------
@@ -380,6 +472,57 @@ function buildBossModel(model) {
     g.add(armL, armR);
     parts.glowPts = [[-0.3, 4.9, 1.0], [0.3, 4.9, 1.0]];
     Object.assign(parts, { armL, armR });
+  } else if (model === 'witch') {
+    const robe = M(0x3b1f5c, { rough: 0.7 }), robe2 = M(0x5a2d8a, { rough: 0.7 }), skin = M(0x9bd46a, { rough: 0.6 });
+    const hatM = M(0x1e1530, { rough: 0.6 }), band = M(0xb04ad9), gold = M(0xffcf4a, { metal: 0.5, rough: 0.3, emissive: 0x4a3000 });
+    const hair = M(0x2a2a3a, { rough: 0.95 }), wood = M(0x6a4428, { rough: 0.9 });
+    const eye = new THREE.MeshStandardMaterial({ color: 0xd9ff6a, emissive: 0xaaff33, emissiveIntensity: 2.4 });
+    const orb = new THREE.MeshStandardMaterial({ color: 0xd9b8ff, emissive: 0xa050ff, emissiveIntensity: 2.6 });
+    // Kleid: schwebt, unten ausgefranst
+    parts.body = part(g, GEO.cone12, robe, 2.7, 3.1, 2.7, 0, 1.55, 0);
+    part(g, GEO.cyl12, robe2, 2.75, 0.22, 2.75, 0, 0.1, 0);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * TAU;
+      part(g, GEO.cone12, robe2, 0.45, 0.6, 0.45, Math.sin(a) * 1.15, -0.2, Math.cos(a) * 1.15, Math.PI, 0, 0);
+    }
+    part(g, GEO.capsule, robe, 1.15, 0.6, 0.95, 0, 2.95, 0);
+    box(g, gold, 1.2, 0.14, 1.0, 0, 2.35, 0);
+    const head = new THREE.Group(); head.position.set(0, 3.85, 0.05); g.add(head);
+    part(head, GEO.ball3, skin, 1.3, 1.2, 1.2, 0, 0, 0);
+    part(head, GEO.ball2, hair, 1.6, 1.35, 1.05, 0, -0.05, -0.3);
+    part(head, GEO.capsule, hair, 0.32, 0.6, 0.3, -0.62, -0.75, -0.05);
+    part(head, GEO.capsule, hair, 0.32, 0.6, 0.3, 0.62, -0.75, -0.05);
+    part(head, GEO.cone12, skin, 0.24, 0.62, 0.24, 0, -0.05, 0.78, 1.35, 0, 0);
+    part(head, GEO.ball1, M(0x6a9a44), 0.1, 0.1, 0.1, 0.08, 0.02, 0.88);
+    part(head, GEO.ball2, eye, 0.26, 0.18, 0.1, -0.27, 0.17, 0.56, 0, 0, 0.25);
+    part(head, GEO.ball2, eye, 0.26, 0.18, 0.1, 0.27, 0.17, 0.56, 0, 0, -0.25);
+    box(head, M(0x1a1220), 0.36, 0.06, 0.06, -0.27, 0.32, 0.56, 0, 0, 0.35);
+    box(head, M(0x1a1220), 0.36, 0.06, 0.06, 0.27, 0.32, 0.56, 0, 0, -0.35);
+    part(head, GEO.ball1, M(0x2a1430), 0.46, 0.1, 0.1, 0, -0.38, 0.54);
+    // Hut
+    const hat = new THREE.Group(); hat.position.set(0, 0.45, -0.05); hat.rotation.x = -0.12; head.add(hat);
+    part(hat, GEO.cyl12, hatM, 2.7, 0.1, 2.7, 0, 0, 0);
+    part(hat, GEO.cone12, hatM, 1.35, 2.0, 1.35, 0, 1.0, 0);
+    part(hat, GEO.cone12, hatM, 0.5, 0.9, 0.5, 0, 2.15, -0.25, -0.7, 0, 0);
+    part(hat, GEO.cyl12, band, 1.3, 0.24, 1.3, 0, 0.2, 0);
+    box(hat, gold, 0.34, 0.3, 0.08, 0, 0.2, 0.64);
+    const armL = new THREE.Group(), armR = new THREE.Group();
+    armL.position.set(-0.75, 3.25, 0); armR.position.set(0.75, 3.25, 0);
+    for (const A of [armL, armR]) {
+      part(A, GEO.capsule, robe2, 0.42, 0.55, 0.42, 0, -0.5, 0.1);
+      part(A, GEO.ball2, skin, 0.36, 0.36, 0.36, 0, -1.05, 0.18);
+    }
+    const staff = new THREE.Group(); staff.position.set(0, -1.05, 0.2); armR.add(staff);
+    part(staff, GEO.cyl12, wood, 0.14, 3.8, 0.14, 0, 0.3, 0);
+    part(staff, GEO.ball2, orb, 0.6, 0.6, 0.6, 0, 2.45, 0);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * TAU;
+      part(staff, GEO.cone12, gold, 0.1, 0.5, 0.1, Math.sin(a) * 0.3, 2.3, Math.cos(a) * 0.3, Math.cos(a) * 0.5, 0, -Math.sin(a) * 0.5);
+    }
+    g.add(armL, armR);
+    parts.glowPts = [[-0.27, 4.02, 0.65], [0.27, 4.02, 0.65]];
+    parts.orbPt = [0.75, 3.6, 0.4];
+    Object.assign(parts, { armL, armR, head, staff });
   } else if (model === 'finalBoss') {
     const skin = M(0x8e3b8f, { rough: 0.55 }), skin2 = M(0xa94ca8, { rough: 0.55 }), belly = M(0xe6a3c9, { rough: 0.6 }), dark = M(0x2a1a2e);
     const horn = M(0xf6efd8, { rough: 0.4 }), gold = M(0xffcf4a, { metal: 0.55, rough: 0.3, emissive: 0x4a3000 });
@@ -430,7 +573,7 @@ function buildBossModel(model) {
 // ---------- Porträts für Menüs und HUD ----------
 // Rendert jeden Helden einmal mit einem eigenen kleinen Renderer und speichert das Bild.
 const Portraits = {};
-function renderPortraits() {
+function renderPortraits(only) {
   let r;
   try {
     const c = document.createElement('canvas');
@@ -446,12 +589,14 @@ function renderPortraits() {
   const back = new THREE.DirectionalLight(0x9fd0ff, 2.0); back.position.set(-3, 2, -3); scene.add(back);
   const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
   for (const ch of CHARACTERS) {
+    if (only && !only.includes(ch.id)) continue;
     const h = buildHero(ch.id);
+    attachHat(h, ch.id, Profile.hats[ch.id]);
     h.rotation.y = -0.35;
     scene.add(h);
-    const hy = h.userData.head.position.y;
-    cam.position.set(0.55, hy + 0.15, 3.0);
-    cam.lookAt(0, hy - 0.12, 0);
+    const hy = h.userData.head.position.y, hat = h.userData.hat ? 1 : 0;
+    cam.position.set(0.55, hy + 0.15 + hat * 0.1, 3.0 + hat * 0.35);
+    cam.lookAt(0, hy - 0.12 + hat * 0.12, 0);
     r.render(scene, cam);
     Portraits[ch.id] = r.domElement.toDataURL('image/png');
     scene.remove(h);

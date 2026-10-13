@@ -97,10 +97,33 @@ Die neuen Waffen im Überblick:
   anderer Stelle neu auf). Lila Truhen von Elite-Gegnern und Bossen sind gratis.
 - **Schreine:** drei Sekunden im Kreis stehen bleiben, dann gibt es einen Segen.
 - Alle 90 Sekunden kommt eine **Horde**, nach 5 Minuten der **Schleimkönig**,
-  nach 10 Minuten der **Golemfürst**.
+  nach 10 Minuten der **Golemfürst** und nach 12:30 **Hexe Morla**. Die Hexe
+  schwebt auf Abstand, schießt Spiralen aus niedrigen Kugeln (drüberspringen),
+  schickt verfolgende Totenköpfe (wegsprinten), legt Giftpfützen, ruft Gehilfen
+  und teleportiert sich.
 - Nach **15:00** erscheint der **Große Rummser**. Er stampft Schockwellen (darüber
   springen!), stürmt los, wirft Felsen und ruft Verstärkung. Solange er lebt,
   werden die Horden immer dichter.
+
+## Freischaltbares
+
+- **Sterne:** Am Ende jeder Runde gibt es Sterne – je überlebter Minute, je
+  besiegtem Boss, für viele besiegte Gegner und für den Sieg.
+- **Werkstatt** (Titelbild): Sterne gegen dauerhafte Verbesserungen für alle
+  Helden tauschen – Kraft, Lebenskraft, Flinke Füße, Magnet, Glückspilz,
+  Weisheit, Startkapital, Glückswürfel (mehr Neuwürfeln) und **Zweites Leben**
+  (einmal pro Runde mit halben LP wieder aufstehen).
+- **Erfolge** (Titelbild): zehn Aufgaben, z. B. jeden Boss besiegen, 1000 Gegner
+  in einer Runde, Stufe 60 oder mit allen Helden gewinnen. Jeder Erfolg bringt
+  Sterne und einen **Hut** (Krone, Schleimhut, Zylinder, Hexenhut, Partyhut,
+  Propellermütze, Blumenkranz, Pilzkappe, Heiligenschein, Teufelshörner), den du
+  in der Heldenauswahl über **Hut** aufsetzt.
+- **Albtraum-Modus:** nach dem ersten Sieg in der Heldenauswahl einschaltbar.
+  Gegner haben 75 % mehr LP und treffen härter, es kommen mehr und öfter
+  Elite-Gegner – dafür gibt es 50 % mehr Sterne.
+
+Fortschritt, Rekorde und Einstellungen werden im Browser bzw. in der App
+gespeichert.
 
 ## Technik
 
@@ -115,7 +138,7 @@ gleichmäßig, egal ob das Handy 30, 60 oder 120 Bilder pro Sekunde schafft.
 
 | Pfad | Inhalt |
 |---|---|
-| `web/js/data.js` | Helden, Waffen, Bücher, Gegner, Bosse und Balancing-Werte |
+| `web/js/data.js` | Helden, Waffen, Bücher, Gegner, Bosse, Werkstatt, Erfolge, Hüte und Balancing-Werte |
 | `web/js/core.js` | Hilfsfunktionen, Gelände, Speicher, Ton und Musik |
 | `web/js/gfx.js` | Renderer, Licht und Schatten, Materialien, Himmel, Leuchtpunkte, Bloom |
 | `web/js/world.js` | Landschaft, Teiche, Gras, Deko, Truhen und Schreine |

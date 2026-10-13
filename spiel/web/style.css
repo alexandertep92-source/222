@@ -87,7 +87,52 @@ span.portrait { display: grid; place-items: center; font-size: 28px; }
 .tagline { margin: 0; font-size: 16px; line-height: 1.45; color: var(--cream); text-shadow: 0 2px 0 var(--ink), 0 0 10px rgba(27, 21, 48, 0.6); max-width: 36ch; }
 .title-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; margin-top: 8px; }
 .title-buttons .row { display: flex; gap: 12px; flex-wrap: wrap; }
-.rotate-btn { position: absolute; right: calc(16px + var(--sr)); top: calc(14px + var(--st)); z-index: 2; }
+.title-top { position: absolute; right: calc(16px + var(--sr)); top: calc(14px + var(--st)); z-index: 2; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.title-buttons .row .btn { display: inline-flex; align-items: center; }
+.star-badge, .count-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 0.78em; background: rgba(0, 0, 0, 0.35); border-radius: 99px; padding: 2px 9px 2px 5px; margin-left: 8px; color: var(--bonk); font-variant-numeric: tabular-nums; }
+.count-badge { padding: 2px 9px; color: var(--cream); }
+.star-badge .ico { width: 1.15em; height: 1.15em; }
+.star-badge.big, .count-badge.big { font-size: 20px; margin: 0; }
+
+/* ---------- Werkstatt und Erfolge ---------- */
+.counter.revive .ico { width: 20px; height: 20px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 6px; }
+.shop-item { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.06); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 8px 10px; }
+.shop-item.done { border-color: rgba(94, 224, 138, 0.5); background: rgba(94, 224, 138, 0.08); }
+.si-text b { display: block; font-size: 15px; }
+.si-text small { display: block; color: var(--muted); font-size: 12px; line-height: 1.25; }
+.pips { display: flex; gap: 3px; margin-top: 5px; }
+.pips i { width: 13px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); }
+.pips i.on { background: var(--bonk); box-shadow: 0 0 6px rgba(255, 207, 51, 0.6); }
+.btn.buy { display: inline-flex; align-items: center; gap: 3px; padding: 4px 9px; font-size: 14px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 3px 0 var(--bonk-deep), 0 5px 0 var(--ink); }
+.btn.buy .ico { width: 18px; height: 18px; }
+.maxed { font-size: 13px; color: var(--leaf); font-weight: 900; text-transform: uppercase; }
+.ach-list { display: grid; gap: 6px; margin-top: 6px; }
+.ach { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; background: rgba(255, 255, 255, 0.05); border: 1.5px solid transparent; border-radius: 12px; padding: 7px 10px; }
+.ach.done { background: rgba(94, 224, 138, 0.1); border-color: rgba(94, 224, 138, 0.35); }
+.ach-icon { width: 28px; height: 28px; }
+.ach:not(.done) .ach-icon { opacity: 0.6; }
+.ach-text b { display: block; font-size: 15px; }
+.ach-text small { display: block; font-size: 12.5px; color: var(--muted); }
+.ach-reward { font-size: 12px; color: var(--bonk); text-align: right; max-width: 18ch; line-height: 1.3; }
+.prog { display: flex; align-items: center; gap: 6px; margin-top: 4px; max-width: 220px; }
+.prog i { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); position: relative; overflow: hidden; }
+.prog i::after { content: ''; position: absolute; inset: 0; width: calc(var(--v) * 100%); background: var(--bonk); }
+.prog em { font-style: normal; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rewards { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.reward { display: flex; align-items: center; gap: 6px; background: rgba(255, 216, 74, 0.12); border: 1.5px solid rgba(255, 216, 74, 0.35); border-radius: 12px; padding: 4px 10px 4px 6px; animation: panelIn 0.4s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.reward + .reward { animation-delay: 0.15s; }
+.reward .ico { width: 24px; height: 24px; flex: 0 0 auto; }
+.reward b { font-size: 16px; white-space: nowrap; }
+.reward span { font-size: 12.5px; color: var(--muted); }
+.reward.ach { background: rgba(94, 224, 138, 0.12); border-color: rgba(94, 224, 138, 0.4); }
+.hd-extra { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.hd-extra .btn { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; padding: 6px 12px; }
+.hd-extra .btn:disabled { opacity: 0.55; }
+.hd-extra .ico { width: 20px; height: 20px; }
+.btn.nm.on { color: #ffd0d0; background: linear-gradient(180deg, #7a2444, #3a0f22); }
+#btn-start.nightmare { background: linear-gradient(180deg, #ff9a9a, #d9363e 60%, #a8222a); color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
 
 /* ---------- Heldenauswahl ---------- */
 #scr-select { display: grid; grid-template-columns: 1fr minmax(290px, 380px); grid-template-rows: auto 1fr auto; grid-template-areas: "head panel" "stage panel" "list panel"; padding: calc(10px + var(--st)) calc(16px + var(--sr)) calc(8px + var(--sb)) calc(16px + var(--sl)); gap: 8px; pointer-events: none; background: radial-gradient(ellipse at 30% 60%, transparent 40%, rgba(27, 21, 48, 0.35) 100%); }

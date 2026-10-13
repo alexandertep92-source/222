@@ -126,13 +126,22 @@ const Input = {
 };
 
 // ---------- Runde ----------
+// Dauerhafte Boni aus der Werkstatt
+function metaBonus() {
+  const b = { damage: 0, maxHp: 0, speed: 0, pickup: 0, luck: 0, xpGain: 0, startGold: 0, rerolls: 0, revive: 0 };
+  for (const it of SHOP) b[it.stat] += it.per * (Profile.shop[it.id] || 0);
+  return b;
+}
+function nightmareUnlocked() { return !!Profile.ach.firstWin; }
+
 function newRunState(charDef) {
   return {
     state: 'playing', char: charDef, time: 0, timeScale: 1,
     stats: null, mods: { maxHp: 0, regen: 0, armor: 0, evasion: 0, speed: 0, damage: 0, attackSpeed: 0, area: 0, amount: 0, crit: 0, luck: 0, xpGain: 0, pickup: 0, gold: 0, jumps: 0 },
     player: null, weapons: [], tomes: {}, enemies: [], bosses: [], chests: [], shrines: [],
     level: 1, xp: 0, xpNeed: xpForLevel(1), pendingLevels: 0, rerolls: CONFIG.REROLLS,
-    gold: 0, goldEarned: 0, kills: 0, totalDamage: 0, damageTaken: 0, hurtBy: {}, seen: {}, chestsOpened: 0, bossesKilled: 0,
+    gold: 0, goldEarned: 0, kills: 0, totalDamage: 0, damageTaken: 0, hurtBy: {}, seen: {}, killsBy: {}, bossIds: [], revives: 0,
+    meta: metaBonus(), nightmare: !!Profile.nightmare && nightmareUnlocked(), starsEarned: 0, newAch: [], chestsOpened: 0, bossesKilled: 0,
     spawnAcc: 0, nextHorde: 75, miniIdx: 0, finalSpawned: false, relocateT: 0, alive: 0,
     camYaw: 0, camYawT: 0, camPitch: 0.5, camPitchT: 0.5, camT: new THREE.Vector3(), camTouched: 0, shake: 0, camKick: 0, camFov: 60,
     look: new THREE.Vector2(),
@@ -141,22 +150,22 @@ function newRunState(charDef) {
 }
 
 function recalcStats() {
-  const c = G.char.stats, m = G.mods, before = G.stats ? G.stats.maxHp : null;
+  const c = G.char.stats, m = G.mods, mb = G.meta, before = G.stats ? G.stats.maxHp : null;
   G.stats = {
-    maxHp: c.maxHp + m.maxHp,
+    maxHp: c.maxHp + m.maxHp + mb.maxHp,
     regen: (c.regen || 0) + m.regen,
     armor: Math.min(0.7, (c.armor || 0) + m.armor),
     evasion: Math.min(0.6, (c.evasion || 0) + m.evasion),
-    speed: c.speed * (1 + m.speed),
-    damage: 1 + m.damage,
+    speed: c.speed * (1 + m.speed + mb.speed),
+    damage: 1 + m.damage + mb.damage,
     attackSpeed: 1 + m.attackSpeed,
     area: 1 + (c.area || 0) + m.area,
     amount: m.amount,
     crit: 0.05 + (c.crit || 0) + m.crit,
     critDmg: 2,
-    luck: m.luck,
-    xpGain: 1 + (c.xpGain || 0) + m.xpGain,
-    pickup: 3.2 * (1 + m.pickup),
+    luck: m.luck + mb.luck,
+    xpGain: 1 + (c.xpGain || 0) + m.xpGain + mb.xpGain,
+    pickup: 3.2 * (1 + m.pickup + mb.pickup),
     gold: 1 + m.gold,
     projSpeed: 1 + (c.projSpeed || 0),
     jumps: 1 + (c.jumps || 0) + m.jumps,
@@ -177,6 +186,7 @@ function cleanupRun() {
   for (const w of EnemyShots.waves) W.scene.remove(w.mesh);
   Pickups.gems.length = 0; Pickups.coins.length = 0; Pickups.items.length = 0;
   EnemyShots.list.length = 0; EnemyShots.waves.length = 0; EnemyShots.rocks.length = 0;
+  EnemyShots.blasts.length = 0; EnemyShots.pools.length = 0; Enemies.queue.length = 0;
   Particles.list.length = 0; Particles.sparks.length = 0; Particles.smoke.length = 0; Popups.list.length = 0;
   Effects.clear();
   for (const e of G.enemies) Enemies.pool.push(e);
@@ -196,6 +206,7 @@ function startRun(charId) {
   recalcStats();
   G.player.hp = G.stats.maxHp;
   G.player.jumpsLeft = G.stats.jumps - 1;
+  G.gold = G.meta.startGold; G.rerolls += G.meta.rerolls; G.revives = G.meta.revive;
   addWeapon(charDef.weapons[0]);
   placeChestsAndShrines();
   G.camT.set(0, G.player.y + 1.4, 0);
@@ -207,7 +218,7 @@ function startRun(charId) {
   Music.intensity = 0; Music.start();
   UI.showHud(true);
   UI.rebuildWeapons();
-  UI.banner(`${charDef.title} ${charDef.name}`, 'Überlebe 15 Minuten und besiege den Endboss!', 2.6);
+  UI.banner(`${charDef.title} ${charDef.name}`, G.nightmare ? 'Albtraum-Modus: Die Gegner sind viel stärker!' : 'Überlebe 15 Minuten und besiege den Endboss!', 2.6);
   requestWakeLock();
 }
 
@@ -349,8 +360,9 @@ function updateSpawner(dt) {
   let rate = spawnRate(Math.min(m, 15));
   if (t > CONFIG.ROUND_SECONDS) rate *= 1.35 + (t - CONFIG.ROUND_SECONDS) / 90;
   if (G.bosses.some((b) => b.alive && !b.def.final)) rate *= 0.45;
+  if (G.nightmare) rate *= NIGHTMARE.rate;
   G.spawnAcc += rate * dt;
-  const eliteChance = t < 120 ? 0 : 0.012 + m * 0.0016;
+  const eliteChance = (t < 120 ? 0 : 0.012 + m * 0.0016) * (G.nightmare ? NIGHTMARE.elite : 1);
   while (G.spawnAcc >= 1) {
     G.spawnAcc -= 1;
     if (alive >= CONFIG.MAX_ENEMIES) { G.spawnAcc = Math.min(G.spawnAcc, 3); break; }
@@ -591,7 +603,36 @@ function endRun(victory) {
   if (victory) { r.wins++; r.bestWin = r.bestWin ? Math.min(r.bestWin, G.time) : G.time; }
   rec[G.char.id] = r;
   Store.set(RECORDS_KEY, rec);
+  grantRewards(rec);
 }
+
+// Sterne für die Runde: pro Minute, pro Boss, für viele Besiegte und den Sieg
+function starsForRun() {
+  const minutes = Math.floor(Math.min(G.time, CONFIG.ROUND_SECONDS) / 60);
+  const s = minutes + G.bossIds.length * 4 + Math.floor(G.kills / 400) + (G.victory ? 15 : 0);
+  return Math.round(s * (G.nightmare ? NIGHTMARE.stars : 1));
+}
+function grantRewards(rec) {
+  const T = Profile.totals;
+  T.runs = (T.runs || 0) + 1;
+  T.kills = (T.kills || 0) + G.kills;
+  T.bomber = (T.bomber || 0) + (G.killsBy.bomber || 0);
+  const run = {
+    victory: G.victory, nightmare: G.nightmare, level: G.level, kills: G.kills, bosses: G.bossIds,
+    shrines: G.shrines.filter((s) => s.used).length, char: G.char.id,
+  };
+  G.starsEarned = starsForRun();
+  G.newAch = [];
+  for (const a of ACHIEVEMENTS) {
+    if (Profile.ach[a.id] || !a.check(run, Profile, rec)) continue;
+    Profile.ach[a.id] = true;
+    G.newAch.push(a);
+  }
+  const total = G.starsEarned + G.newAch.reduce((n, a) => n + a.stars, 0);
+  Profile.stars += total; Profile.starsTotal = (Profile.starsTotal || 0) + total;
+  saveProfile();
+}
+function hatUnlocked(id) { return ACHIEVEMENTS.some((a) => a.hat === id && Profile.ach[a.id]); }
 function quitToMenu() {
   Music.stop();
   cleanupRun();
@@ -660,6 +701,7 @@ function buildMenuScene() {
   Menu.pedestal = ped;
   CHARACTERS.forEach((c, i) => {
     const h = buildHero(c.id);
+    attachHat(h, c.id, Profile.hats[c.id]);
     W.scene.add(h);
     h.userData.slot = i;
     h.userData.phase = i * 1.3;
@@ -716,6 +758,7 @@ function updateMenuScene(dt) {
     u.head.position.y = u.head.userData.baseY + Math.sin(t * 2 + u.phase) * 0.025;
     const blink = ((t + u.phase) % 3.7) < 0.12;
     for (const e of u.eyes) e.scale.y = blink ? 0.12 : 1;
+    if (u.hat && u.hat.userData.spin) u.hat.userData.spin.rotation.y += dt * 7;
   });
   Menu.pedestal.visible = select;
   const inst = Enemies.inst.slime;
@@ -1041,6 +1084,12 @@ function botMove() {
   if (l < 0.05) { vx = Math.sin(G.time * 0.3); vz = Math.cos(G.time * 0.3); }
   if (Math.random() < 0.01) Input.jumpPressed = true;
   if (Math.random() < 0.004) Input.dashPressed = true;
+  // Giftpfützen meiden, Verfolgern mit dem Sprint ausweichen
+  for (const pl of EnemyShots.pools) {
+    const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz) || 0.1;
+    if (d < pl.r + 1.5) { vx += (dx / d) * 3; vz += (dz / d) * 3; }
+  }
+  for (const s of EnemyShots.list) if (s.homing > 0 && (s.x - p.x) ** 2 + (s.z - p.z) ** 2 < 6) Input.dashPressed = true;
   // Schockwellen überspringen, wie es ein Mensch tun würde
   for (const w of EnemyShots.waves) { const d = Math.hypot(p.x - w.x, p.z - w.z); if (d - w.R > 0 && d - w.R < 1.6 && p.grounded) Input.jumpPressed = true; }
   const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = -fz, rz = fx;

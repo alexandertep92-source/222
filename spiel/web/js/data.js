@@ -14,6 +14,7 @@ const CONFIG = {
   MINI_BOSSES: [
     { t: 5 * 60, id: 'slimeKing' },
     { t: 10 * 60, id: 'golemLord' },
+    { t: 12.5 * 60, id: 'witch' },
   ],
   HORDE_EVERY: 90,
   CHESTS: 16,
@@ -333,8 +334,66 @@ const BOSSES = {
     name: 'Golemfürst', hp: 20000, speed: 2.8, dmg: 34, r: 2.5, h: 5.2, xp: 400, gold: 120,
     attacks: ['slam', 'charge', 'rocks', 'charge'], model: 'golemLord',
   },
+  witch: {
+    name: 'Hexe Morla', hp: 60000, speed: 4.4, dmg: 36, r: 1.5, h: 4.6, xp: 600, gold: 160,
+    attacks: ['spiral', 'homing', 'blink', 'puddles', 'summon', 'spiral', 'blink', 'homing'], model: 'witch',
+    hover: true, keep: 10, summon: ['skeleton', 'wisp', 'ghost'],
+  },
   finalBoss: {
     name: 'Der Große Rummser', hp: 100000, speed: 3.4, dmg: 42, r: 3.0, h: 7, xp: 0, gold: 0,
     attacks: ['slam', 'charge', 'burst', 'rocks', 'summon', 'burst'], model: 'finalBoss', final: true,
   },
 };
+
+// ---------- Freischaltbares ----------
+// Sterne gibt es am Ende jeder Runde und für Erfolge. In der Werkstatt werden sie gegen
+// dauerhafte Verbesserungen getauscht, die für alle Helden gelten.
+const SHOP = [
+  { id: 'might', name: 'Kraft', desc: '+5 % Schaden', icon: ['tome', 'might'], stat: 'damage', per: 0.05, cost: [10, 20, 35, 55, 80] },
+  { id: 'vitality', name: 'Lebenskraft', desc: '+10 Max-LP', icon: ['tome', 'vitality'], stat: 'maxHp', per: 10, cost: [8, 16, 28, 44, 64] },
+  { id: 'swift', name: 'Flinke Füße', desc: '+3 % Lauftempo', icon: ['tome', 'swift'], stat: 'speed', per: 0.03, cost: [12, 26, 45] },
+  { id: 'magnet', name: 'Magnet', desc: '+12 % Sammelradius', icon: ['tome', 'magnet'], stat: 'pickup', per: 0.12, cost: [8, 18, 32] },
+  { id: 'luck', name: 'Glückspilz', desc: '+4 % Glück', icon: ['tome', 'luck'], stat: 'luck', per: 0.04, cost: [15, 30, 50] },
+  { id: 'wisdom', name: 'Weisheit', desc: '+5 % Erfahrung', icon: ['tome', 'wisdom'], stat: 'xpGain', per: 0.05, cost: [12, 25, 42] },
+  { id: 'gold', name: 'Startkapital', desc: '+15 Gold zu Beginn', icon: ['misc', 'gold'], stat: 'startGold', per: 15, cost: [10, 22, 38] },
+  { id: 'reroll', name: 'Glückswürfel', desc: '+1 Neuwürfeln pro Runde', icon: ['misc', 'dice'], stat: 'rerolls', per: 1, cost: [25, 60] },
+  { id: 'revive', name: 'Zweites Leben', desc: 'Einmal pro Runde mit halben LP wieder aufstehen', icon: ['misc', 'revive'], stat: 'revive', per: 1, cost: [120] },
+];
+
+// Kosmetische Hüte, freigeschaltet über Erfolge
+const HATS = {
+  crown: { name: 'Krone' },
+  slime: { name: 'Schleimhut' },
+  tophat: { name: 'Zylinder' },
+  witch: { name: 'Hexenhut' },
+  party: { name: 'Partyhut' },
+  propeller: { name: 'Propellermütze' },
+  flowers: { name: 'Blumenkranz' },
+  mushroom: { name: 'Pilzkappe' },
+  halo: { name: 'Heiligenschein' },
+  devil: { name: 'Teufelshörner' },
+};
+
+// run: Zusammenfassung der gerade beendeten Runde, prof: Spielerprofil, rec: Rekorde je Held
+const ACHIEVEMENTS = [
+  { id: 'firstWin', name: 'Erster Sieg', desc: 'Gewinne eine Runde.', stars: 20, hat: 'crown', extra: 'Albtraum-Modus', check: (run) => run.victory },
+  { id: 'slimeKing', name: 'Schleimbezwinger', desc: 'Besiege den Schleimkönig.', stars: 5, hat: 'slime', check: (run) => run.bosses.includes('slimeKing') },
+  { id: 'golemLord', name: 'Steinbrecher', desc: 'Besiege den Golemfürsten.', stars: 10, hat: 'tophat', check: (run) => run.bosses.includes('golemLord') },
+  { id: 'witch', name: 'Hexenjäger', desc: 'Besiege Hexe Morla.', stars: 15, hat: 'witch', check: (run) => run.bosses.includes('witch') },
+  { id: 'kills', name: 'Rummsmaschine', desc: 'Besiege 1000 Gegner in einer Runde.', stars: 10, hat: 'party', check: (run) => run.kills >= 1000 },
+  { id: 'level', name: 'Überflieger', desc: 'Erreiche Stufe 60 in einer Runde.', stars: 15, hat: 'propeller', check: (run) => run.level >= 60 },
+  { id: 'shrines', name: 'Pilger', desc: 'Nutze 5 Schreine in einer Runde.', stars: 10, hat: 'flowers', check: (run) => run.shrines >= 5 },
+  {
+    id: 'bombers', name: 'Pilzsammler', desc: 'Besiege insgesamt 250 Knallpilze.', stars: 10, hat: 'mushroom',
+    check: (run, prof) => (prof.totals.bomber || 0) >= 250, progress: (prof) => [prof.totals.bomber || 0, 250],
+  },
+  {
+    id: 'allHeroes', name: 'Heldenhaft', desc: 'Gewinne mit allen fünf Helden.', stars: 40, hat: 'halo',
+    check: (run, prof, rec) => CHARACTERS.every((c) => rec[c.id] && rec[c.id].wins),
+    progress: (prof, rec) => [CHARACTERS.filter((c) => rec[c.id] && rec[c.id].wins).length, CHARACTERS.length],
+  },
+  { id: 'nightmare', name: 'Albtraumbezwinger', desc: 'Gewinne im Albtraum-Modus.', stars: 50, hat: 'devil', check: (run) => run.victory && run.nightmare },
+];
+
+// Albtraum-Modus (nach dem ersten Sieg): stärkere Gegner, mehr Sterne
+const NIGHTMARE = { hp: 1.75, dmg: 1.3, rate: 1.2, elite: 1.8, bossHp: 1.5, bossDmg: 1.2, stars: 1.5 };

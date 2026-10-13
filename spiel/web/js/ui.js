@@ -29,7 +29,8 @@ const UI = {
     h.timer = $('#timer'); h.timerSub = $('#timer-sub');
     h.weapons = $('#weapons');
     h.boss = $('#bossbar'); h.bossName = $('#boss-name'); h.bossFill = $('#boss-fill');
-    h.dash = $('#btn-dash'); h.portrait = $('#hud-portrait');
+    h.dash = $('#btn-dash'); h.portrait = $('#hud-portrait'); h.revive = $('#hud-revive');
+    h.revive.innerHTML = Icons.misc('revive');
     $('#btn-jump').innerHTML = Icons.misc('jump') + '<span>Sprung</span>';
     $('#btn-dash').innerHTML = Icons.misc('dash') + '<span>Sprint</span>';
 
@@ -47,6 +48,8 @@ const UI = {
     click('#btn-play', () => this.showScreen('select'));
     click('#btn-settings', () => this.openModal('settings'));
     click('#btn-help', () => this.openModal('help'));
+    click('#btn-shop', () => this.openModal('shop'));
+    click('#btn-ach', () => this.openModal('ach'));
     click('#btn-rotate', () => this.cycleRotation());
     click('#btn-back', () => this.showScreen('title'));
     click('#btn-start', () => { this.tryFullscreen(); startRun(this.selected); });
@@ -66,6 +69,7 @@ const UI = {
 
     this.buildHeroList();
     this.buildSettings();
+    this.refreshTitle();
     this.measureSafe();
     window.addEventListener('resize', () => { this.measureSafe(); this.updateRotateHint(); });
     this.updateRotateHint();
@@ -128,6 +132,7 @@ const UI = {
   showScreen(name) {
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== `scr-${name}`; });
     this.screen = name;
+    if (name === 'title') this.refreshTitle();
     if (name === 'title' || name === 'select') {
       App.state = name;
       showPreview();
@@ -143,6 +148,8 @@ const UI = {
     m.hidden = false;
     if (!this.modalStack.includes(name)) this.modalStack.push(name);
     if (name === 'settings') this.syncSettings();
+    if (name === 'shop') this.showShop();
+    if (name === 'ach') this.showAch();
   },
   closeModal(name) {
     $(`#modal-${name}`).hidden = true;
@@ -186,6 +193,9 @@ const UI = {
       return `<li><span class="wicon">${Icons.weapon(wid)}</span><span><b>${esc(w.name)}</b>${i === 0 ? ' <em>Start</em>' : ''}<small>${esc(w.desc)}</small></span></li>`;
     }).join('');
     const bars = Object.entries(HERO_BARS[c.id]).map(([k, v]) => `<div class="bar"><span>${k}</span><i style="--v:${v / 5}"></i></div>`).join('');
+    const hats = this.hatList(), hat = Profile.hats[c.id] || 'none';
+    const hatText = hats.length > 1 ? `Hut: ${hat === 'none' ? 'ohne' : HATS[hat].name}` : 'Hüte: über Erfolge';
+    const nm = nightmareUnlocked() ? `<button id="btn-nm" class="btn ghost small nm${Profile.nightmare ? ' on' : ''}">Albtraum: ${Profile.nightmare ? 'an' : 'aus'}</button>` : '';
     const d = $('#hero-detail');
     d.style.setProperty('--hero', c.color);
     d.innerHTML = `
@@ -194,8 +204,70 @@ const UI = {
       <div class="bars">${bars}</div>
       <p class="hd-passive"><span class="label">Passiv</span> ${esc(c.passive)}</p>
       <ul class="hd-weapons">${weapons}</ul>
+      <div class="hd-extra"><button id="btn-hat" class="btn ghost small"${hats.length > 1 ? '' : ' disabled'}>${Icons.misc('hat')}${esc(hatText)}</button>${nm}</div>
       <p class="hd-record"><span class="label">Rekord</span> ${esc(recText)}</p>`;
     d.classList.remove('swap'); void d.offsetWidth; d.classList.add('swap');
+    $('#btn-hat').addEventListener('click', () => this.cycleHat(c.id));
+    if (nm) $('#btn-nm').addEventListener('click', () => { Profile.nightmare = !Profile.nightmare; saveProfile(); Sound.pick(); this.showHero(c.id); });
+    const nmOn = Profile.nightmare && nightmareUnlocked();
+    $('#btn-start').textContent = nmOn ? 'Los geht\'s – Albtraum' : 'Los geht\'s';
+    $('#btn-start').classList.toggle('nightmare', nmOn);
+  },
+  hatList() { return ['none', ...Object.keys(HATS).filter(hatUnlocked)]; },
+  cycleHat(id) {
+    const list = this.hatList();
+    if (list.length < 2) return;
+    const cur = Profile.hats[id] || 'none';
+    const next = list[(list.indexOf(cur) + 1) % list.length];
+    Profile.hats[id] = next; saveProfile();
+    if (Menu.heroes[id]) attachHat(Menu.heroes[id], id, next);
+    renderPortraits([id]);
+    this.buildHeroList();
+    this.showHero(id);
+    Sound.pick();
+  },
+
+  // ---------- Werkstatt und Erfolge ----------
+  refreshTitle() {
+    $('#title-stars').innerHTML = `${Icons.misc('star')}${Profile.stars}`;
+    $('#title-ach').textContent = `${ACHIEVEMENTS.filter((a) => Profile.ach[a.id]).length}/${ACHIEVEMENTS.length}`;
+  },
+  showShop() {
+    $('#shop-stars').innerHTML = `${Icons.misc('star')}${Profile.stars}`;
+    const list = $('#shop-list');
+    list.innerHTML = SHOP.map((it) => {
+      const lvl = Profile.shop[it.id] || 0, max = it.cost.length, cost = it.cost[lvl];
+      const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
+      const btn = lvl >= max ? '<span class="maxed">Max.</span>'
+        : `<button class="btn small buy" data-id="${it.id}"${Profile.stars < cost ? ' disabled' : ''}>${Icons.misc('star')}${cost}</button>`;
+      return `<div class="shop-item${lvl >= max ? ' done' : ''}"><span class="wicon">${Icons[it.icon[0]](it.icon[1])}</span>`
+        + `<div class="si-text"><b>${esc(it.name)}</b><small>${esc(it.desc)}${max > 1 ? ' pro Stufe' : ''}</small><span class="pips">${pips}</span></div>${btn}</div>`;
+    }).join('');
+    list.querySelectorAll('.buy').forEach((b) => b.addEventListener('click', () => this.buy(b.dataset.id)));
+  },
+  buy(id) {
+    const it = SHOP.find((x) => x.id === id), lvl = Profile.shop[id] || 0, cost = it.cost[lvl];
+    if (cost === undefined || Profile.stars < cost) return;
+    Profile.stars -= cost; Profile.shop[id] = lvl + 1;
+    saveProfile();
+    Sound.chest(); vibrate(30);
+    this.showShop(); this.refreshTitle();
+  },
+  showAch() {
+    const rec = Store.get(RECORDS_KEY, {});
+    const done = ACHIEVEMENTS.filter((a) => Profile.ach[a.id]).length;
+    $('#ach-count').textContent = `${done} / ${ACHIEVEMENTS.length}`;
+    $('#ach-list').innerHTML = ACHIEVEMENTS.map((a) => {
+      const ok = !!Profile.ach[a.id];
+      let prog = '';
+      if (!ok && a.progress) {
+        const [cur, max] = a.progress(Profile, rec);
+        prog = `<span class="prog"><i style="--v:${Math.min(1, cur / max)}"></i><em>${Math.min(cur, max)} / ${max}</em></span>`;
+      }
+      const reward = [`${a.stars} Sterne`, a.hat ? `Hut: ${HATS[a.hat].name}` : '', a.extra || ''].filter(Boolean).join(' · ');
+      return `<div class="ach${ok ? ' done' : ''}"><span class="ach-icon">${Icons.misc(ok ? 'check' : 'lock')}</span>`
+        + `<div class="ach-text"><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${prog}</div><span class="ach-reward">${esc(reward)}</span></div>`;
+    }).join('');
   },
 
   // ---------- Einstellungen ----------
@@ -252,6 +324,7 @@ const UI = {
     });
     this.set('gold', h.gold, Math.floor(G.gold), (el, v) => { el.textContent = v; });
     this.set('kills', h.kills, G.kills, (el, v) => { el.textContent = fmtNum(v); });
+    this.set('rev', h.revive, G.revives, (el, v) => { el.hidden = !v; });
     const left = CONFIG.ROUND_SECONDS - G.time;
     const final = left <= 0;
     this.set('timer', h.timer, final ? `+${fmtTime(-left)}` : fmtTime(Math.ceil(left)), (el, v) => { el.textContent = v; el.classList.toggle('final', final); el.classList.toggle('soon', !final && left < 60); });
@@ -259,7 +332,7 @@ const UI = {
     if (final) sub = G.bosses.some((b) => b.def.final && b.alive) ? 'Endboss!' : '';
     else {
       const mb = CONFIG.MINI_BOSSES[G.miniIdx];
-      sub = mb && mb.t - G.time < 30 ? `Zwischenboss in ${Math.ceil(mb.t - G.time)} s` : 'bis zum Endboss';
+      sub = mb && mb.t - G.time < 30 ? `Zwischenboss in ${Math.ceil(mb.t - G.time)} s` : G.nightmare ? 'Albtraum · bis zum Endboss' : 'bis zum Endboss';
     }
     this.set('tsub', h.timerSub, sub, (el, v) => { el.textContent = v; });
     const b = G.bossBar;
@@ -370,6 +443,12 @@ const UI = {
       ? `${G.char.title} ${G.char.name} hat den Großen Rummser bezwungen.`
       : G.time >= CONFIG.ROUND_SECONDS ? 'So knapp! Der Endboss war zu stark.' : `Durchgehalten: ${fmtTime(G.time)} von ${fmtTime(CONFIG.ROUND_SECONDS)}`;
     $('#over-best').hidden = !G.newBest;
+    let rw = `<div class="reward stars">${Icons.misc('star')}<b>+${G.starsEarned}</b><span>Sterne${G.nightmare ? ' (Albtraum ×1,5)' : ''}</span></div>`;
+    for (const a of G.newAch) {
+      const extra = [`+${a.stars} Sterne`, a.hat ? `neuer Hut: ${HATS[a.hat].name}` : '', a.extra ? `${a.extra} freigeschaltet` : ''].filter(Boolean).join(' · ');
+      rw += `<div class="reward ach">${Icons.misc('check')}<b>${esc(a.name)}</b><span>${esc(extra)}</span></div>`;
+    }
+    $('#over-rewards').innerHTML = rw;
     const stats = [
       ['Zeit', fmtTime(G.time)], ['Stufe', G.level], ['Besiegt', fmtNum(G.kills)],
       ['Schaden', fmtNum(G.totalDamage)], ['Gold', fmtNum(G.goldEarned)], ['Bosse', G.bossesKilled],

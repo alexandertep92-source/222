@@ -124,6 +124,7 @@ function randomEnemy(x, z, maxR, preferStrong) {
 const DASH_TIME = 0.26, DASH_CD = 1.6;
 function createPlayer(charDef) {
   const model = buildHero(charDef.id);
+  attachHat(model, charDef.id, Profile.hats[charDef.id]);
   W.scene.add(model);
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.55, 20),
     new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
@@ -278,6 +279,7 @@ function renderPlayer(a, dt) {
   if (p.blinkT < 0) p.blinkT = 2.2 + Math.random() * 3;
   for (const e of u.eyes) e.scale.y = blink ? 0.12 : 1;
   if (u.tails) u.tails.rotation.x = 0.4 * Math.min(run, 1) + Math.sin(t * 13) * 0.15;
+  if (u.hat && u.hat.userData.spin) u.hat.userData.spin.rotation.y += dt * (6 + hs * 2);
   const flick = p.iframes > 0 && p.iframes < 0.55 && Math.floor(p.iframes * 18) % 2 === 0;
   m.visible = !flick;
   for (const mt of u.mats) {
@@ -311,7 +313,30 @@ function hurtPlayer(amount, src) {
   UI.hurtFlash();
   addNumber(p.x, p.y + 2.3, p.z, dmg, false, '#ff5a6a');
   sparkBurst(p.x, p.y + 1, p.z, 8, 0xff5a6a, 4, 0.35);
-  if (p.hp <= 0) { p.hp = 0; endRun(false); }
+  if (p.hp <= 0) {
+    if (G.revives > 0) { G.revives--; revivePlayer(); return; }
+    p.hp = 0; endRun(false);
+  }
+}
+
+// Zweites Leben aus der Werkstatt: aufstehen, Gegner wegstoßen, kurz unverwundbar
+function revivePlayer() {
+  const p = G.player;
+  p.hp = G.stats.maxHp * 0.5; p.iframes = 2.5;
+  Grid.query(p.x, p.z, 9, (e) => {
+    if (e.boss) return;
+    const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz) || 1;
+    const k = 26 / e.mass;
+    e.kvx += (dx / d) * k; e.kvz += (dz / d) * k;
+    if (k >= 8 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.45, 10); e.ay = 0.001; }
+  });
+  EnemyShots.list.length = 0;
+  ringFx(p.x, p.z, 9, 0xffd84a, 0.6, 0.1);
+  Effects.add('disc', p.x, p.z, { color: 0xfff2b0, dur: 0.5, r0: 1, r1: 9, op: 0.5, ease: true });
+  sparkBurst(p.x, p.y + 1, p.z, 30, 0xffd84a, 6, 0.5);
+  UI.banner('Zweites Leben!', 'Du stehst wieder auf.', 2);
+  Sound.levelUp(); vibrate(150);
+  G.shake = Math.max(G.shake, 0.5);
 }
 
 function healPlayer(amount) {
@@ -353,7 +378,8 @@ const Enemies = {
     const m = G.time / 60;
     const e = this.pool.pop() || { hitT: new Float32Array(4) };
     const elite = !!opts.elite;
-    const hpMul = enemyHpScale(m) * (elite ? 5 : 1) * (opts.hpMul || 1);
+    const nm = G.nightmare;
+    const hpMul = enemyHpScale(m) * (elite ? 5 : 1) * (opts.hpMul || 1) * (nm ? NIGHTMARE.hp : 1);
     const y = groundHeight(x, z) + (def.fly || 0);
     Object.assign(e, {
       type: typeId, def, x, z, y, px: x, pz: z, py: y, prot: 0,
@@ -361,7 +387,7 @@ const Enemies = {
       hp: def.hp * hpMul, maxHp: def.hp * hpMul,
       r: def.r * (elite ? 1.5 : 1), h: def.h * (elite ? 1.5 : 1), scale: elite ? 1.5 : 1,
       speed: def.speed * (1 + Math.min(m, 15) * 0.012) * (elite ? 0.9 : 1) * rand(0.92, 1.08),
-      dmg: def.dmg * enemyDmgScale(m) * (elite ? 1.5 : 1),
+      dmg: def.dmg * enemyDmgScale(m) * (elite ? 1.5 : 1) * (nm ? NIGHTMARE.dmg : 1),
       xp: def.xp * (1 + m * 0.05) * (elite ? 6 : 1),
       mass: def.mass * (elite ? 3 : 1),
       elite, boss: false, alive: true, dying: false, dyingT: 0, dead: false,
@@ -681,6 +707,7 @@ function killEnemy(e, w, dx, dz) {
   if (w) w.kills++;
   if (e.boss) { onBossKilled(e); return; }
   G.kills++;
+  G.killsBy[e.type] = (G.killsBy[e.type] || 0) + 1;
   if (e.warn) { e.warn.done = true; e.warn = null; }
   const sd = e.def.split;
   if (sd) Enemies.queue.push({ type: sd.into, n: sd.n + (e.elite ? 3 : 0), x: e.x, z: e.z });
@@ -733,7 +760,7 @@ function shamanHeal(e, hl) {
 }
 
 // ---------- Gegner-Geschosse und Gefahren ----------
-const EnemyShots = { list: [], inst: null, waves: [], rocks: [], blasts: [] };
+const EnemyShots = { list: [], inst: null, waves: [], rocks: [], blasts: [], pools: [] };
 function fireEnemyOrb(x, y, z, dx, dz, speed, dmg, color, slow, slowT) {
   EnemyShots.list.push({ x, y, z, px: x, py: y, pz: z, vx: dx * speed, vz: dz * speed, life: 5, dmg, r: 0.35, color: new THREE.Color(color || 0xff6ab0), slow: slow || 0, slowT: slowT || 0 });
 }
@@ -742,6 +769,15 @@ function updateEnemyShots(dt) {
   for (let i = list.length - 1; i >= 0; i--) {
     const s = list[i];
     s.px = s.x; s.py = s.y; s.pz = s.z;
+    if (s.homing > 0) {
+      // Verfolger lenken langsam zum Spieler und sinken auf Brusthöhe
+      s.homing -= dt;
+      const sp = Math.hypot(s.vx, s.vz) || 1, cur = Math.atan2(s.vx, s.vz);
+      const want = Math.atan2(p.x - s.x, p.z - s.z), na = cur + clamp(angleDiff(cur, want), -2.3 * dt, 2.3 * dt);
+      s.vx = Math.sin(na) * sp; s.vz = Math.cos(na) * sp;
+      s.y += (p.y + 1.0 - s.y) * Math.min(1, dt * 2);
+      if (Math.random() < 0.5) spawnSpark(s.x, s.y, s.z, 0, 0.6, 0, 0.4, 0.5, 0x9dff5a, 0);
+    }
     s.x += s.vx * dt; s.z += s.vz * dt; s.life -= dt;
     const gh = groundHeight(s.x, s.z);
     if (s.low) s.y = gh + 0.55;
@@ -755,6 +791,28 @@ function updateEnemyShots(dt) {
       sparkBurst(s.x, s.y, s.z, 5, s.color.getHex(), 3, 0.3);
       list.splice(i, 1);
     }
+  }
+  // Giftpfützen der Hexe: erst Warnkreis, dann brodelt es
+  for (let i = EnemyShots.pools.length - 1; i >= 0; i--) {
+    const pl = EnemyShots.pools[i];
+    pl.t += dt;
+    if (pl.t >= pl.warn) {
+      if (!pl.on) {
+        pl.on = true;
+        pl.fx = Effects.add('disc', pl.x, pl.z, { color: 0x5adf3a, dur: pl.life - pl.warn, r0: pl.r, r1: pl.r, op: 0.42 });
+        smokeBurst(pl.x, groundHeight(pl.x, pl.z) + 0.3, pl.z, 4, 0x6adf4a, 1.4, 1.5);
+      }
+      if (Math.random() < 0.25) {
+        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * pl.r;
+        spawnSpark(pl.x + Math.sin(a) * d, groundHeight(pl.x, pl.z) + 0.15, pl.z + Math.cos(a) * d, 0, rand(0.6, 1.4), 0, 0.6, 0.35, 0x9dff5a, 0);
+      }
+      pl.tick -= dt;
+      if (pl.tick <= 0 && (p.x - pl.x) ** 2 + (p.z - pl.z) ** 2 < pl.r * pl.r && p.y - groundHeight(p.x, p.z) < 0.6) {
+        pl.tick = 0.5;
+        hurtPlayer(pl.dmg, 'boss');
+      }
+    }
+    if (pl.t >= pl.life) EnemyShots.pools.splice(i, 1);
   }
   // Explosionen abgeschossener Knallpilze (Kettenreaktion im nächsten Schritt)
   if (EnemyShots.blasts.length) {
@@ -796,6 +854,11 @@ function addShockwave(x, z, maxR, speed, dmg) {
   W.scene.add(mesh);
   EnemyShots.waves.push({ x, z, R: 0.5, maxR, speed, dmg, hit: false, mesh });
 }
+function addPoison(x, z, r, dmg) {
+  const H = CONFIG.MAP_HALF;
+  x = clamp(x, -H, H); z = clamp(z, -H, H);
+  EnemyShots.pools.push({ x, z, r, dmg, t: 0, warn: 0.9, life: 5.9, tick: 0, on: false, fx: warnFx(x, z, r, 0.9) });
+}
 function addRock(sx, sz, tx, tz, dmg) {
   const T = 1.1;
   EnemyShots.rocks.push({ sx, sz, tx, tz, t: 0, T, dmg, r: 2.2, warn: warnFx(tx, tz, 2.2, T) });
@@ -806,7 +869,7 @@ function renderEnemyShots(a) {
   for (const s of EnemyShots.list) {
     const x = ilerp(s.px, s.x, a), y = ilerp(s.py, s.y, a), z = ilerp(s.pz, s.z, a);
     inst.add(x, y, z, 0, 0, 0, s.r * 2, s.r * 2, s.r * 2, s.color.r * 2.2, s.color.g * 2.2, s.color.b * 2.2);
-    FX.glow.add(x, y, z, 1.6, s.color.r, s.color.g, s.color.b, 0.55);
+    FX.glow.add(x, y, z, s.homing !== undefined ? 3 : 1.6, s.color.r, s.color.g, s.color.b, 0.55);
   }
   inst.end();
   const ri = Effects.rockInst;

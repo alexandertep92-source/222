@@ -30,6 +30,7 @@
           <div class="counters">
             <span class="counter"><i class="coin"></i><span id="gold">0</span></span>
             <span class="counter"><i class="skull"></i><span id="kills">0</span></span>
+            <span id="hud-revive" class="counter revive" hidden aria-label="Zweites Leben bereit"></span>
           </div>
         </div>
       </div>
@@ -53,15 +54,19 @@
 
   <!-- Titelbild -->
   <section id="scr-title" class="screen" hidden>
-    <button id="btn-rotate" class="btn ghost small rotate-btn" hidden aria-label="Bildschirm drehen">Drehen</button>
+    <div class="title-top">
+      <button id="btn-rotate" class="btn ghost small" hidden aria-label="Bildschirm drehen">Drehen</button>
+      <button id="btn-help" class="btn ghost small">So geht's</button>
+      <button id="btn-settings" class="btn ghost small">Einstellungen</button>
+    </div>
     <div class="title-wrap">
       <h1 class="logo"><span>RUMMS</span><em>!</em></h1>
       <p class="tagline">15 Minuten. Fünf Helden. Endlose Horden.<br>Und am Ende wartet der Große Rummser.</p>
       <div class="title-buttons">
         <button id="btn-play" class="btn big">Spielen</button>
         <div class="row">
-          <button id="btn-help" class="btn ghost">So geht's</button>
-          <button id="btn-settings" class="btn ghost">Einstellungen</button>
+          <button id="btn-shop" class="btn ghost">Werkstatt <span id="title-stars" class="star-badge"></span></button>
+          <button id="btn-ach" class="btn ghost">Erfolge <span id="title-ach" class="count-badge"></span></button>
         </div>
       </div>
     </div>
@@ -148,6 +153,24 @@
     </div>
   </div>
 
+  <!-- Werkstatt -->
+  <div id="modal-shop" class="modal" hidden>
+    <div class="panel wide">
+      <div class="panel-head"><h2>Werkstatt</h2><span id="shop-stars" class="star-badge big"></span></div>
+      <p class="muted">Dauerhafte Verbesserungen für alle Helden. Sterne gibt es am Ende jeder Runde und für Erfolge.</p>
+      <div id="shop-list" class="shop-grid"></div>
+      <div class="panel-foot"><button class="btn" data-close="shop">Fertig</button></div>
+    </div>
+  </div>
+  <!-- Erfolge -->
+  <div id="modal-ach" class="modal" hidden>
+    <div class="panel wide">
+      <div class="panel-head"><h2>Erfolge</h2><span id="ach-count" class="count-badge big"></span></div>
+      <p class="muted">Jeder Erfolg bringt Sterne und einen Hut, den du in der Heldenauswahl aufsetzen kannst.</p>
+      <div id="ach-list" class="ach-list"></div>
+      <div class="panel-foot"><button class="btn" data-close="ach">Fertig</button></div>
+    </div>
+  </div>
   <!-- Anleitung -->
   <div id="modal-help" class="modal" hidden>
     <div class="panel wide">
@@ -168,7 +191,8 @@
             <li>Bei jedem Stufenaufstieg wählst du neue Waffen, Waffen-Verbesserungen oder Bücher.</li>
             <li>Gold öffnet Truhen. Lila Truhen von Elite-Gegnern und Bossen sind gratis.</li>
             <li>Bleib in einem Schrein-Kreis stehen, um einen Segen zu bekommen.</li>
-            <li>Zwischenbosse kommen nach 5 und 10 Minuten, der Endboss nach 15 Minuten.</li>
+            <li>Zwischenbosse kommen nach 5, 10 und 12:30 Minuten, der Endboss nach 15 Minuten.</li>
+            <li>Am Ende jeder Runde gibt es Sterne. Tausche sie in der Werkstatt gegen dauerhafte Verbesserungen.</li>
           </ul>
         </div>
       </div>
@@ -182,6 +206,7 @@
       <div class="over-head"><div id="over-hero"></div><h2 id="over-title" class="over-title">Besiegt!</h2></div>
       <p id="over-sub" class="muted"></p>
       <p id="over-best" class="best" hidden>Neuer Rekord!</p>
+      <div id="over-rewards" class="rewards"></div>
       <div id="over-stats" class="statgrid six"></div>
       <table class="wtable"><thead><tr><th></th><th>Waffe</th><th class="num">Schaden</th><th class="num">Besiegt</th></tr></thead><tbody id="over-weapons"></tbody></table>
       <div class="panel-foot">

@@ -1,5 +1,5 @@
 'use strict';
-// Rumms! – Zwischenbosse (5:00, 10:00) und der Endboss nach 15 Minuten.
+// Rumms! – Zwischenbosse (5:00, 10:00, 12:30) und der Endboss nach 15 Minuten.
 
 function spawnBoss(id) {
   const def = BOSSES[id], p = G.player;
@@ -12,15 +12,15 @@ function spawnBoss(id) {
   }
   const mesh = buildBossModel(def.model);
   W.scene.add(mesh);
-  const hp = def.hp;
+  const hp = def.hp * (G.nightmare ? NIGHTMARE.bossHp : 1);
   const b = {
     boss: true, id, def, x, z, y: groundHeight(x, z), r: def.r, h: def.h,
-    hp, maxHp: hp, speed: def.speed, dmg: def.dmg * enemyDmgScale(G.time / 60) * 0.7,
+    hp, maxHp: hp, speed: def.speed, dmg: def.dmg * enemyDmgScale(G.time / 60) * 0.7 * (G.nightmare ? NIGHTMARE.bossDmg : 1),
     mass: 999, alive: true, dying: false, deathT: 0,
     state: 'walk', stateT: 0, atkCd: 3, atkIdx: 0, rot: Math.atan2(p.x - x, p.z - z),
     flash: 0, slowT: 0, slow: 0, hitT: new Float32Array(4), lift: 0, enraged: false,
     mesh, sx: 0, sz: 0, tx: 0, tz: 0, cx: 0, cz: 0, waves: 0, phase: 0,
-    px: x, pz: z, pvy: groundHeight(x, z), prot: 0, hitAt: -9,
+    px: x, pz: z, pvy: groundHeight(x, z), prot: 0, hitAt: -9, emitT: 0, circle: Math.random() < 0.5 ? -1 : 1,
   };
   b.prot = b.rot;
   G.bosses.push(b);
@@ -36,7 +36,7 @@ function spawnBoss(id) {
 function startBossAttack(b) {
   const atk = b.def.attacks[b.atkIdx++ % b.def.attacks.length];
   const p = G.player;
-  b.state = atk; b.stateT = 0; b.waves = 0;
+  b.state = atk; b.stateT = 0; b.waves = 0; b.emitT = 0;
   if (atk === 'slam') {
     const dx = p.x - b.x, dz = p.z - b.z, d = Math.hypot(dx, dz) || 1, j = Math.min(d, 12);
     b.sx = b.x; b.sz = b.z; b.tx = b.x + (dx / d) * j; b.tz = b.z + (dz / d) * j;
@@ -71,12 +71,19 @@ function updateBosses(dt) {
       Sound.boss();
     }
     const cdMul = b.enraged ? 0.65 : 1;
-    let lift = 0;
+    let lift = b.def.hover ? 0.9 + Math.sin(G.time * 2) * 0.25 : 0;
     const face = (rate) => { b.rot += angleDiff(b.rot, Math.atan2(dx, dz)) * Math.min(1, dt * rate); };
     switch (b.state) {
       case 'walk':
         face(4);
-        if (d > b.r + 0.4) { b.x += (dx / d) * b.speed * slow * dt; b.z += (dz / d) * b.speed * slow * dt; }
+        if (b.def.keep) {
+          // Abstand halten und seitlich um den Spieler kreisen
+          const want = b.def.keep;
+          let mx = (-dz / d) * 0.7 * b.circle, mz = (dx / d) * 0.7 * b.circle;
+          if (d > want + 3) { mx += dx / d; mz += dz / d; } else if (d < want - 3) { mx -= dx / d; mz -= dz / d; }
+          if (Math.random() < dt * 0.15) b.circle *= -1;
+          b.x += mx * b.speed * slow * dt; b.z += mz * b.speed * slow * dt;
+        } else if (d > b.r + 0.4) { b.x += (dx / d) * b.speed * slow * dt; b.z += (dz / d) * b.speed * slow * dt; }
         b.atkCd -= dt;
         if (b.atkCd <= 0) startBossAttack(b);
         break;
@@ -138,15 +145,78 @@ function updateBosses(dt) {
       case 'summon': {
         if (b.stateT > 0.5 && b.waves === 0) {
           b.waves = 1;
-          const n = b.def.final ? 10 : 6;
+          const n = b.def.final ? 10 : b.def.summon ? 8 : 6;
           for (let k = 0; k < n; k++) {
             const a = (k / n) * TAU;
             const x = b.x + Math.sin(a) * (b.r + 3), z = b.z + Math.cos(a) * (b.r + 3);
-            Enemies.spawn(pickSpawnType(), clamp(x, -CONFIG.MAP_HALF, CONFIG.MAP_HALF), clamp(z, -CONFIG.MAP_HALF, CONFIG.MAP_HALF));
+            Enemies.spawn(b.def.summon ? pick(b.def.summon) : pickSpawnType(), clamp(x, -CONFIG.MAP_HALF, CONFIG.MAP_HALF), clamp(z, -CONFIG.MAP_HALF, CONFIG.MAP_HALF));
           }
           ringFx(b.x, b.z, b.r + 3, 0xc58bff, 0.5, 0.3);
         }
         if (b.stateT > 1.0) { b.state = 'walk'; b.atkCd = rand(1.5, 2.5) * cdMul; }
+        break;
+      }
+      // ---- Hexe Morla ----
+      case 'spiral': {
+        // Drei Arme aus niedrigen Kugeln drehen sich nach außen: drüberspringen oder durch die Lücken
+        face(2);
+        if (b.stateT > 0.3 && b.stateT < 2.3) {
+          b.emitT += dt;
+          while (b.emitT >= 0.09) {
+            b.emitT -= 0.09;
+            for (let k = 0; k < 3; k++) {
+              const a = b.stateT * 2.6 * b.circle + (k / 3) * TAU;
+              fireEnemyOrb(b.x + Math.sin(a) * b.r, groundHeight(b.x, b.z) + 0.55, b.z + Math.cos(a) * b.r, Math.sin(a), Math.cos(a), 7.5, b.dmg * 0.35, 0xb06aff);
+              EnemyShots.list[EnemyShots.list.length - 1].low = true;
+            }
+          }
+          if (Math.random() < dt * 8) Sound.zap();
+        }
+        if (b.stateT > 2.6) { b.state = 'walk'; b.atkCd = rand(1.6, 2.4) * cdMul; }
+        break;
+      }
+      case 'homing': {
+        // Verfolgende Totenköpfe: wegrennen oder mit Sprint ausweichen
+        face(4);
+        if (b.stateT > 0.5 && b.waves === 0) {
+          b.waves = 1;
+          for (let k = 0; k < 3; k++) {
+            const a = b.rot + (k - 1) * 0.8;
+            fireEnemyOrb(b.x + Math.sin(a) * 1.6, b.y + lift + 3.2, b.z + Math.cos(a) * 1.6, Math.sin(a), Math.cos(a), 6.4, b.dmg * 0.55, 0x9dff5a);
+            const sh = EnemyShots.list[EnemyShots.list.length - 1];
+            sh.homing = 4.2; sh.r = 0.55; sh.life = 6.5;
+          }
+          Sound.whoom();
+        }
+        if (b.stateT > 1.0) { b.state = 'walk'; b.atkCd = rand(1.2, 2.0) * cdMul; }
+        break;
+      }
+      case 'blink': {
+        // verschwindet in einer Rauchwolke und taucht woanders wieder auf
+        if (b.stateT >= 0.45 && b.waves === 0) {
+          b.waves = 1;
+          smokeBurst(b.x, b.y + 2, b.z, 10, 0x6a4a8a, 2.2, 3);
+          const a = Math.random() * TAU, r = rand(8, 11), H = CONFIG.MAP_HALF - 4;
+          b.x = clamp(p.x + Math.sin(a) * r, -H, H); b.z = clamp(p.z + Math.cos(a) * r, -H, H);
+          b.px = b.x; b.pz = b.z;
+          smokeBurst(b.x, groundHeight(b.x, b.z) + 2, b.z, 10, 0x6a4a8a, 2.2, 3);
+          ringFx(b.x, b.z, 3, 0xc58bff, 0.4, 0.2);
+          Sound.whoom();
+        }
+        if (b.stateT > 0.9) { b.state = 'walk'; b.atkCd = 0.5; }
+        break;
+      }
+      case 'puddles': {
+        face(4);
+        if (b.stateT > 0.4 && b.waves === 0) {
+          b.waves = 1;
+          for (let k = 0; k < 3; k++) {
+            const a = Math.random() * TAU, r = k === 0 ? 0 : rand(2.5, 5);
+            addPoison(p.x + Math.sin(a) * r + p.vx * 0.4, p.z + Math.cos(a) * r + p.vz * 0.4, 2.6, b.dmg * 0.22);
+          }
+          Sound.puff();
+        }
+        if (b.stateT > 1.0) { b.state = 'walk'; b.atkCd = rand(1.5, 2.3) * cdMul; }
         break;
       }
       default: b.state = 'walk';
@@ -157,7 +227,7 @@ function updateBosses(dt) {
     b.lift = lift;
     // Berührung
     const ddx = p.x - b.x, ddz = p.z - b.z, dd = Math.hypot(ddx, ddz) || 0.01;
-    if (dd < b.r + 0.45 && p.y < b.y + lift + b.h * 0.85 && p.y + 1.7 > b.y + lift) {
+    if (b.state !== 'blink' && dd < b.r + 0.45 && p.y < b.y + lift + b.h * 0.85 && p.y + 1.7 > b.y + lift) {
       hurtPlayer(b.state === 'charge' ? b.dmg * 1.2 : b.dmg, 'boss');
       const push = (b.r + 0.45 - dd);
       p.x += (ddx / dd) * push; p.z += (ddz / dd) * push;
@@ -178,6 +248,19 @@ function renderBosses(a) {
       const s = Math.sin(b.phase * 1.5);
       m.scale.set(1 - s * 0.05 + hk, 1 + s * 0.08 + (b.state === 'slam' ? 0.15 : 0) - hk, 1 - s * 0.05 + hk);
       for (const e of parts.eyes) e.scale.y = Math.sin(G.time * 0.7) > 0.985 ? 0.15 : 1;
+    } else if (b.def.model === 'witch') {
+      const casting = b.state !== 'walk' && b.state !== 'blink';
+      parts.armR.rotation.x = casting ? -1.25 + Math.sin(G.time * 12) * 0.08 : -0.3 - Math.sin(b.phase) * 0.2;
+      parts.armL.rotation.x = Math.sin(b.phase) * 0.3;
+      parts.armL.rotation.z = casting ? -0.7 : -0.15;
+      m.rotation.z = Math.sin(b.phase * 0.7) * 0.05;
+      let s = 1;
+      if (b.state === 'blink') { const t = b.stateT; s = Math.max(0.02, t < 0.45 ? 1 - t / 0.45 : Math.min(1, (t - 0.45) / 0.45)); }
+      m.scale.set((1 + hk) * s, (1 - hk) * s, (1 + hk) * s);
+      m.updateMatrixWorld();
+      parts.staff.localToWorld(_bv.set(0, 2.45, 0));
+      FX.glow.add(_bv.x, _bv.y, _bv.z, (casting ? 4.5 : 3) * s, 0.75, 0.45, 1, 0.75);
+      if (Math.random() < 0.35) spawnSpark(_bv.x + rand(-0.4, 0.4), _bv.y, _bv.z + rand(-0.4, 0.4), 0, rand(0.5, 1.5), 0, 0.6, 0.4, 0xc58bff, 0);
     } else {
       if (parts.armL) parts.armL.rotation.x = Math.sin(b.phase) * 0.4;
       if (parts.armR) parts.armR.rotation.x = b.state === 'slam' ? -2.4 * Math.sin(Math.min(1, b.stateT) * Math.PI) : -Math.sin(b.phase) * 0.4;
@@ -188,7 +271,8 @@ function renderBosses(a) {
       m.updateMatrixWorld();
       for (const g of parts.glowPts) {
         _bv.set(g[0], g[1], g[2]).applyMatrix4(m.matrixWorld);
-        FX.glow.add(_bv.x, _bv.y, _bv.z, 1.6, 1, 0.75, 0.2, 0.7);
+        if (b.def.model === 'witch') FX.glow.add(_bv.x, _bv.y, _bv.z, 1.2, 0.75, 1, 0.3, 0.8);
+        else FX.glow.add(_bv.x, _bv.y, _bv.z, 1.6, 1, 0.75, 0.2, 0.7);
       }
     }
     for (const mt of m.userData.mats) {
@@ -204,6 +288,7 @@ const _bv = new THREE.Vector3();
 function onBossKilled(b) {
   b.alive = false; b.dying = true; b.deathT = 0;
   G.bossesKilled++;
+  G.bossIds.push(b.id);
   if (G.bossBar === b) G.bossBar = G.bosses.find((o) => o.alive && o !== b) || null;
   Sound.stomp(); Sound.chest();
   G.shake = Math.max(G.shake, 0.6);
