@@ -1,0 +1,69 @@
+name: Spiel
+
+# Baut das Spiel "Rumms!" (spiel/) als Android-App und veröffentlicht die APK
+# immer unter demselben Release "rumms".
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "spiel/**"
+      - ".github/workflows/spiel.yml"
+  pull_request:
+    paths:
+      - "spiel/**"
+      - ".github/workflows/spiel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax der Spieldateien prüfen
+        run: for f in spiel/web/js/*.js; do node --check "$f"; done
+
+  android:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: APK bauen
+        working-directory: spiel/android
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - run: cp spiel/android/app/build/outputs/apk/release/app-release.apk Rumms.apk
+      - name: Signatur anzeigen
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner
+          "$apksigner" verify --print-certs Rumms.apk | grep -i "SHA-256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rumms-apk
+          path: Rumms.apk
+      - name: Release "rumms" aktualisieren
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete rumms --yes --cleanup-tag || true
+          gh release create rumms Rumms.apk \
+            --title "Rumms! (Build ${{ github.run_number }})" \
+            --target "${{ github.sha }}" \
+            --latest=false \
+            --notes "**Android:** \`Rumms.apk\` auf dem Handy herunterladen und öffnen (einmalig „Installation aus unbekannten Quellen“ erlauben). Neue Versionen lassen sich einfach darüber installieren.
+
+          Branch \`${{ github.ref_name }}\`, Commit ${{ github.sha }}."

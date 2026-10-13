@@ -1,0 +1,323 @@
+'use strict';
+// Rumms! – Menüs, HUD und Dialoge (DOM).
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const UI = {
+  coarse: false, screen: null, modalStack: [], hud: {}, cache: {}, safe: { l: 0, r: 0 },
+  selected: null, bannerT: 0, quitArmed: false,
+
+  init() {
+    this.coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    document.body.classList.toggle('coarse', this.coarse);
+    this.selected = Settings.char;
+    const h = this.hud;
+    h.root = $('#hud');
+    h.xpFill = $('#xp-fill'); h.lvl = $('#lvl');
+    h.hpFill = $('#hp-fill'); h.hpText = $('#hp-text');
+    h.gold = $('#gold'); h.kills = $('#kills');
+    h.timer = $('#timer'); h.timerSub = $('#timer-sub');
+    h.weapons = $('#weapons');
+    h.boss = $('#bossbar'); h.bossName = $('#boss-name'); h.bossFill = $('#boss-fill');
+    h.dash = $('#btn-dash');
+
+    const press = (el, fn) => el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+    press($('#btn-jump'), () => { Input.jumpPressed = true; });
+    press($('#btn-dash'), () => { Input.dashPressed = true; });
+    press($('#btn-pause'), () => pauseGame());
+
+    const click = (sel, fn) => $(sel).addEventListener('click', (e) => { Sound.init(); fn(e); });
+    click('#btn-play', () => this.showScreen('select'));
+    click('#btn-settings', () => this.openModal('settings'));
+    click('#btn-help', () => this.openModal('help'));
+    click('#btn-back', () => this.showScreen('title'));
+    click('#btn-start', () => { this.tryFullscreen(); startRun(this.selected); });
+    click('#btn-reroll', () => rerollChoice());
+    click('#btn-skip', () => skipChoice());
+    click('#btn-resume', () => resumeGame());
+    click('#btn-pause-settings', () => this.openModal('settings'));
+    click('#btn-quit', () => {
+      if (!this.quitArmed) { this.quitArmed = true; $('#btn-quit').textContent = 'Wirklich aufgeben?'; return; }
+      this.hidePause();
+      endRun(false);
+    });
+    click('#btn-again', () => { const id = G ? G.char.id : this.selected; this.closeModal('over'); startRun(id); });
+    click('#btn-heroes', () => { this.closeModal('over'); quitToMenu(); this.showScreen('select'); });
+    click('#btn-menu', () => { this.closeModal('over'); quitToMenu(); });
+    document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => this.closeModal(b.dataset.close)));
+
+    this.buildHeroList();
+    this.buildSettings();
+    this.measureSafe();
+    window.addEventListener('resize', () => { this.measureSafe(); this.updateRotateHint(); });
+    this.updateRotateHint();
+    // Keine Doppeltipp-Vergrößerung und kein Kontextmenü im Spiel
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('dblclick', (e) => e.preventDefault());
+  },
+
+  measureSafe() {
+    const probe = $('#safe-probe');
+    if (!probe) return;
+    const cs = getComputedStyle(probe);
+    this.safe.l = parseFloat(cs.paddingLeft) || 0;
+    this.safe.r = parseFloat(cs.paddingRight) || 0;
+  },
+  safeLeft() { return this.safe.l; },
+  safeRight() { return this.safe.r; },
+
+  updateRotateHint() {
+    const portrait = window.innerHeight > window.innerWidth * 1.1;
+    $('#rotate-hint').hidden = !(this.coarse && portrait && App.state === 'title');
+  },
+
+  tryFullscreen() {
+    if (!this.coarse) return;
+    try {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req && !document.fullscreenElement) {
+        const pr = req.call(el, { navigationUI: 'hide' });
+        if (pr && pr.then) pr.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (_) { /* egal */ } }).catch(() => {});
+      }
+    } catch (_) { /* Vollbild nicht erlaubt */ }
+  },
+
+  showScreen(name) {
+    document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== `scr-${name}`; });
+    this.screen = name;
+    if (name === 'title' || name === 'select') {
+      App.state = name;
+      showPreview(this.selected);
+      if (name === 'select') this.showHero(this.selected);
+    }
+    this.updateRotateHint();
+  },
+
+  openModal(name) {
+    $('#banner').classList.remove('show');
+    this.bannerT = 0;
+    const m = $(`#modal-${name}`);
+    m.hidden = false;
+    if (!this.modalStack.includes(name)) this.modalStack.push(name);
+    if (name === 'settings') this.syncSettings();
+  },
+  closeModal(name) {
+    $(`#modal-${name}`).hidden = true;
+    this.modalStack = this.modalStack.filter((n) => n !== name);
+  },
+  back() {
+    const top = this.modalStack[this.modalStack.length - 1];
+    if (top && top !== 'choice' && top !== 'over' && top !== 'pause') { this.closeModal(top); return true; }
+    if (this.screen === 'select' && !G) { this.showScreen('title'); return true; }
+    return false;
+  },
+
+  // ---------- Heldenauswahl ----------
+  buildHeroList() {
+    const list = $('#hero-list');
+    list.innerHTML = '';
+    for (const c of CHARACTERS) {
+      const b = document.createElement('button');
+      b.className = 'hero-chip';
+      b.dataset.id = c.id;
+      b.style.setProperty('--hero', c.color);
+      b.innerHTML = `<span class="hero-chip-icon">${c.icon}</span><span class="hero-chip-name">${esc(c.name)}</span><span class="hero-chip-role">${esc(c.title)}</span>`;
+      b.addEventListener('click', () => { Sound.init(); Sound.pick(); this.showHero(c.id); });
+      list.appendChild(b);
+    }
+  },
+  showHero(id) {
+    const c = CHARACTERS.find((x) => x.id === id) || CHARACTERS[0];
+    this.selected = c.id;
+    Settings.char = c.id; saveSettings();
+    showPreview(c.id);
+    document.querySelectorAll('.hero-chip').forEach((b) => b.classList.toggle('active', b.dataset.id === c.id));
+    const rec = Store.get(RECORDS_KEY, {})[c.id];
+    const recText = rec ? (rec.wins ? `${rec.wins}× gewonnen · Bestzeit ${fmtTime(rec.bestWin || CONFIG.ROUND_SECONDS)} · Stufe ${rec.level}` : `Längste Runde ${fmtTime(rec.best)} · Stufe ${rec.level}`) : 'Noch nicht gespielt';
+    const weapons = c.weapons.map((wid, i) => {
+      const w = WEAPONS[wid];
+      return `<li><span class="wicon">${w.icon}</span><span><b>${esc(w.name)}</b>${i === 0 ? ' <em>Start</em>' : ''}<br><small>${esc(w.desc)}</small></span></li>`;
+    }).join('');
+    $('#hero-detail').style.setProperty('--hero', c.color);
+    $('#hero-detail').innerHTML = `
+      <div class="hd-head"><h2>${esc(c.title)} ${esc(c.name)}</h2><span class="tag">${esc(c.difficulty)}</span></div>
+      <p class="hd-desc">${esc(c.desc)}</p>
+      <p class="hd-passive"><span class="label">Passiv</span> ${esc(c.passive)}</p>
+      <ul class="hd-weapons">${weapons}</ul>
+      <p class="hd-record"><span class="label">Rekord</span> ${esc(recText)}</p>`;
+  },
+
+  // ---------- Einstellungen ----------
+  buildSettings() {
+    const seg = $('#set-quality');
+    seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      Settings.quality = b.dataset.q; saveSettings(); applyResolution(); this.syncSettings();
+    }));
+    for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) {
+      const el = $(`#set-${key}`);
+      el.addEventListener('change', () => { Settings[key] = el.checked; saveSettings(); Sound.applySettings(); });
+    }
+    const sens = $('#set-sens');
+    sens.addEventListener('input', () => { Settings.sensitivity = parseFloat(sens.value); saveSettings(); $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`; });
+  },
+  syncSettings() {
+    $('#set-quality').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.q === Settings.quality));
+    for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) $(`#set-${key}`).checked = !!Settings[key];
+    $('#set-sens').value = Settings.sensitivity;
+    $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`;
+  },
+
+  // ---------- HUD ----------
+  showHud(on) {
+    this.hud.root.hidden = !on;
+    document.querySelectorAll('.screen').forEach((s) => { s.hidden = true; });
+    this.screen = null;
+    this.cache = {};
+    if (!on) { this.hud.boss.hidden = true; }
+    this.updateRotateHint();
+  },
+  set(key, el, value, fn) {
+    if (this.cache[key] === value) return;
+    this.cache[key] = value;
+    fn(el, value);
+  },
+  updateHud() {
+    const h = this.hud, p = G.player, s = G.stats;
+    this.set('xp', h.xpFill, Math.round((G.xp / G.xpNeed) * 400) / 4, (el, v) => { el.style.width = `${v}%`; });
+    this.set('lvl', h.lvl, G.level, (el, v) => { el.textContent = `Stufe ${v}`; });
+    const max = Math.round(s.maxHp), hp = Math.min(max, Math.ceil(p.hp));
+    this.set('hp', h.hpFill, `${hp}/${max}`, (el) => {
+      el.style.width = `${clamp(hp / max, 0, 1) * 100}%`;
+      h.hpText.textContent = `${hp} / ${max}`;
+      el.parentElement.classList.toggle('low', hp / max < 0.3);
+    });
+    this.set('gold', h.gold, Math.floor(G.gold), (el, v) => { el.textContent = v; });
+    this.set('kills', h.kills, G.kills, (el, v) => { el.textContent = fmtNum(v); });
+    const left = CONFIG.ROUND_SECONDS - G.time;
+    const final = left <= 0;
+    this.set('timer', h.timer, final ? `+${fmtTime(-left)}` : fmtTime(Math.ceil(left)), (el, v) => { el.textContent = v; el.classList.toggle('final', final); el.classList.toggle('soon', !final && left < 60); });
+    let sub;
+    if (final) sub = G.bosses.some((b) => b.def.final && b.alive) ? 'Endboss!' : '';
+    else {
+      const mb = CONFIG.MINI_BOSSES[G.miniIdx];
+      sub = mb && mb.t - G.time < 30 ? `Zwischenboss in ${Math.ceil(mb.t - G.time)} s` : 'bis zum Endboss';
+    }
+    this.set('tsub', h.timerSub, sub, (el, v) => { el.textContent = v; });
+    const b = G.bossBar;
+    this.set('bossOn', h.boss, !!(b && b.alive), (el, v) => { el.hidden = !v; if (v) h.bossName.textContent = b.def.name; });
+    if (b && b.alive) this.set('bossHp', h.bossFill, Math.round((b.hp / b.maxHp) * 1000), (el, v) => { el.style.width = `${Math.max(0, v / 10)}%`; });
+    const cd = clamp(p.dashCd / 1.8, 0, 1);
+    this.set('dash', h.dash, Math.round(cd * 40), (el, v) => { el.style.setProperty('--cd', v / 40); el.classList.toggle('cooling', v > 0); });
+    for (const w of G.weapons) this.set(`w${w.slot}`, null, w.level, () => { const el = $(`#wslot-${w.slot} .wlvl`); if (el) el.textContent = w.level; });
+    if (this.bannerT > 0) {
+      this.bannerT -= 1 / Math.max(App.fps, 20);
+      if (this.bannerT <= 0) $('#banner').classList.remove('show');
+    }
+  },
+  rebuildWeapons() {
+    if (!G) return;
+    const el = this.hud.weapons;
+    el.innerHTML = '';
+    for (let i = 0; i < CONFIG.MAX_WEAPONS; i++) {
+      const w = G.weapons[i];
+      const d = document.createElement('div');
+      d.className = 'wslot' + (w ? '' : ' empty');
+      d.id = `wslot-${i}`;
+      d.innerHTML = w ? `<span>${w.def.icon}</span><b class="wlvl">${w.level}</b>` : '<span>·</span>';
+      el.appendChild(d);
+    }
+    for (const k of Object.keys(this.cache)) if (k[0] === 'w') delete this.cache[k];
+  },
+  banner(title, sub, dur) {
+    const b = $('#banner');
+    b.innerHTML = `<strong>${esc(title)}</strong>${sub ? `<span>${esc(sub)}</span>` : ''}`;
+    b.classList.remove('show');
+    void b.offsetWidth;
+    b.classList.add('show');
+    this.bannerT = dur;
+  },
+  hurtFlash() {
+    const v = $('#vignette');
+    v.classList.remove('hit');
+    void v.offsetWidth;
+    v.classList.add('hit');
+  },
+
+  // ---------- Kartenwahl ----------
+  showChoice(choice) {
+    const titles = {
+      level: [`Stufe ${G.level - G.pendingLevels + 1}!`, 'Wähle eine Verbesserung'],
+      chest: ['Truhe geöffnet!', 'Wähle deine Belohnung'],
+      shrine: ['Schrein aktiviert!', 'Wähle einen Segen'],
+    };
+    const [t, s] = titles[choice.source];
+    $('#choice-title').textContent = t;
+    $('#choice-sub').textContent = s;
+    const box = $('#choice-cards');
+    box.innerHTML = '';
+    choice.cards.forEach((c, i) => {
+      const r = c.rarity >= 0 ? RARITIES[c.rarity] : null;
+      const b = document.createElement('button');
+      b.className = 'card' + (c.kind === 'newWeapon' ? ' new' : '');
+      b.style.setProperty('--rar', r ? r.color : '#ffcf33');
+      b.innerHTML = `
+        <span class="card-rar">${r ? esc(r.name) : 'Neu'}</span>
+        <span class="card-icon">${c.icon}</span>
+        <span class="card-title">${esc(c.title)}</span>
+        <span class="card-sub">${esc(c.sub)}</span>
+        <span class="card-desc">${esc(c.desc)}</span>`;
+      b.style.animationDelay = `${i * 60}ms`;
+      b.addEventListener('click', () => chooseCard(i));
+      box.appendChild(b);
+    });
+    const rr = $('#btn-reroll');
+    rr.textContent = `Neu würfeln (${G.rerolls})`;
+    rr.disabled = G.rerolls <= 0;
+    $('#btn-skip').textContent = 'Überspringen (+8 Gold)';
+    this.openModal('choice');
+  },
+  hideChoice() { this.closeModal('choice'); },
+
+  // ---------- Pause ----------
+  showPause() {
+    this.quitArmed = false;
+    $('#btn-quit').textContent = 'Aufgeben';
+    $('#pause-info').textContent = `${G.char.title} ${G.char.name} · ${fmtTime(G.time)} · Stufe ${G.level} · ${fmtNum(G.kills)} besiegt`;
+    $('#pause-weapons').innerHTML = this.weaponRows();
+    const tomes = Object.keys(G.tomes).map((id) => `<span class="tome" title="${esc(TOMES[id].name)}">${TOMES[id].icon}<b>${G.tomes[id]}</b></span>`).join('');
+    $('#pause-tomes').innerHTML = tomes || '<span class="muted">Noch keine Bücher</span>';
+    const s = G.stats;
+    const stats = [
+      ['Schaden', `${Math.round(s.damage * 100)} %`], ['Angriffstempo', `${Math.round(s.attackSpeed * 100)} %`],
+      ['Fläche', `${Math.round(s.area * 100)} %`], ['Krit', fmtPct(s.crit)], ['Rüstung', fmtPct(s.armor)],
+      ['Ausweichen', fmtPct(s.evasion)], ['Tempo', s.speed.toFixed(1).replace('.', ',')], ['Glück', fmtPct(s.luck)],
+    ];
+    $('#pause-stats').innerHTML = stats.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+    this.openModal('pause');
+  },
+  hidePause() { this.closeModal('pause'); },
+  weaponRows() {
+    return G.weapons.map((w) => `<tr><td class="wicon">${w.def.icon}</td><td>${esc(w.def.name)}<small>Stufe ${w.level}</small></td><td class="num">${fmtNum(w.dmg)}</td><td class="num">${fmtNum(w.kills)}</td></tr>`).join('');
+  },
+
+  // ---------- Rundenende ----------
+  showGameOver() {
+    const win = G.victory;
+    $('#over-title').textContent = win ? 'Sieg!' : 'Besiegt!';
+    $('#over-title').classList.toggle('win', win);
+    $('#over-sub').textContent = win
+      ? `${G.char.title} ${G.char.name} hat den Großen Rummser bezwungen.`
+      : G.time >= CONFIG.ROUND_SECONDS ? 'So knapp! Der Endboss war zu stark.' : `Durchgehalten: ${fmtTime(G.time)} von ${fmtTime(CONFIG.ROUND_SECONDS)}`;
+    $('#over-best').hidden = !G.newBest;
+    const stats = [
+      ['Zeit', fmtTime(G.time)], ['Stufe', G.level], ['Besiegt', fmtNum(G.kills)],
+      ['Schaden', fmtNum(G.totalDamage)], ['Gold', fmtNum(G.goldEarned)], ['Bosse', G.bossesKilled],
+    ];
+    $('#over-stats').innerHTML = stats.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+    $('#over-weapons').innerHTML = this.weaponRows();
+    this.openModal('over');
+  },
+};

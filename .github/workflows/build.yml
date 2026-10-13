@@ -3,7 +3,14 @@ name: Build
 on:
   push:
     branches: ["**"]
+    # Das Spiel (spiel/) hat einen eigenen Workflow.
+    paths-ignore:
+      - "spiel/**"
+      - ".github/workflows/spiel.yml"
   pull_request:
+    paths-ignore:
+      - "spiel/**"
+      - ".github/workflows/spiel.yml"
   workflow_dispatch:
 
 permissions:

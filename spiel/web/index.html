@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1530">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Rumms!</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-label="Spielwelt"></canvas>
+  <canvas id="overlay"></canvas>
+  <div id="touch"></div>
+  <div id="vignette"></div>
+  <div id="safe-probe" aria-hidden="true"></div>
+
+  <!-- Anzeige während der Runde -->
+  <div id="hud" hidden>
+    <div class="xpbar"><div id="xp-fill"></div></div>
+    <div class="hud-left">
+      <div class="hp-row">
+        <span id="lvl" class="lvl">Stufe 1</span>
+        <div class="hpbar"><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
+      </div>
+      <div class="counters">
+        <span class="counter"><i class="coin"></i><span id="gold">0</span></span>
+        <span class="counter"><i class="skull"></i><span id="kills">0</span></span>
+      </div>
+      <div id="weapons" class="weapons"></div>
+    </div>
+    <div class="hud-center">
+      <div id="timer" class="timer">15:00</div>
+      <div id="timer-sub" class="timer-sub">bis zum Endboss</div>
+      <div id="bossbar" class="bossbar" hidden>
+        <div id="boss-name" class="boss-name"></div>
+        <div class="boss-hp"><div id="boss-fill"></div></div>
+      </div>
+    </div>
+    <button id="btn-pause" class="hud-btn" aria-label="Pause"><span></span><span></span></button>
+    <button id="btn-dash" class="act dash" aria-label="Sprint">Sprint</button>
+    <button id="btn-jump" class="act jump" aria-label="Springen">Sprung</button>
+  </div>
+
+  <div id="banner" role="status" aria-live="polite"></div>
+
+  <!-- Titelbild -->
+  <section id="scr-title" class="screen" hidden>
+    <div class="title-wrap">
+      <h1 class="logo"><span>RUMMS</span><em>!</em></h1>
+      <p class="tagline">15 Minuten. Fünf Helden. Endlose Horden.<br>Und am Ende wartet der Große Rummser.</p>
+      <div class="title-buttons">
+        <button id="btn-play" class="btn big">Spielen</button>
+        <div class="row">
+          <button id="btn-help" class="btn ghost">So geht's</button>
+          <button id="btn-settings" class="btn ghost">Einstellungen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Heldenauswahl -->
+  <section id="scr-select" class="screen" hidden>
+    <header class="sel-head">
+      <button id="btn-back" class="btn ghost small">Zurück</button>
+      <h2>Wähle deinen Helden</h2>
+    </header>
+    <div class="sel-body">
+      <div class="sel-stage"></div>
+      <aside class="sel-panel">
+        <div id="hero-detail" class="hero-detail"></div>
+        <button id="btn-start" class="btn big">Los geht's</button>
+      </aside>
+    </div>
+    <nav id="hero-list" class="hero-list" aria-label="Helden"></nav>
+  </section>
+
+  <!-- Level-up / Truhe / Schrein -->
+  <div id="modal-choice" class="modal choice" hidden>
+    <div class="choice-box">
+      <h2 id="choice-title">Stufe 2!</h2>
+      <p id="choice-sub" class="muted">Wähle eine Verbesserung</p>
+      <div id="choice-cards" class="cards"></div>
+      <div class="choice-foot">
+        <button id="btn-reroll" class="btn ghost small">Neu würfeln</button>
+        <button id="btn-skip" class="btn ghost small">Überspringen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="modal-pause" class="modal" hidden>
+    <div class="panel wide">
+      <h2>Pause</h2>
+      <p id="pause-info" class="muted"></p>
+      <div class="pause-grid">
+        <div>
+          <h3>Waffen</h3>
+          <table class="wtable"><thead><tr><th></th><th>Waffe</th><th class="num">Schaden</th><th class="num">Besiegt</th></tr></thead><tbody id="pause-weapons"></tbody></table>
+          <h3>Bücher</h3>
+          <div id="pause-tomes" class="tomes"></div>
+        </div>
+        <div>
+          <h3>Werte</h3>
+          <div id="pause-stats" class="statgrid"></div>
+        </div>
+      </div>
+      <div class="panel-foot">
+        <button id="btn-resume" class="btn">Weiter</button>
+        <button id="btn-pause-settings" class="btn ghost">Einstellungen</button>
+        <button id="btn-quit" class="btn ghost danger">Aufgeben</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Einstellungen -->
+  <div id="modal-settings" class="modal" hidden>
+    <div class="panel">
+      <h2>Einstellungen</h2>
+      <div class="setting">
+        <span>Grafik</span>
+        <div id="set-quality" class="seg">
+          <button data-q="low">Niedrig</button><button data-q="mid">Mittel</button><button data-q="high">Hoch</button>
+        </div>
+      </div>
+      <label class="setting"><span>Musik</span><input id="set-music" type="checkbox" class="toggle"></label>
+      <label class="setting"><span>Soundeffekte</span><input id="set-sfx" type="checkbox" class="toggle"></label>
+      <label class="setting"><span>Vibration</span><input id="set-vibrate" type="checkbox" class="toggle"></label>
+      <label class="setting"><span>Schadenszahlen</span><input id="set-numbers" type="checkbox" class="toggle"></label>
+      <label class="setting"><span>Kamera folgt automatisch</span><input id="set-autoCam" type="checkbox" class="toggle"></label>
+      <label class="setting"><span>Kamera-Empfindlichkeit <b id="sens-val">100 %</b></span><input id="set-sens" type="range" min="0.4" max="2.2" step="0.1"></label>
+      <p class="muted small">Kantenglättung ändert sich erst nach einem Neustart des Spiels.</p>
+      <div class="panel-foot"><button class="btn" data-close="settings">Fertig</button></div>
+    </div>
+  </div>
+
+  <!-- Anleitung -->
+  <div id="modal-help" class="modal" hidden>
+    <div class="panel wide">
+      <h2>So geht's</h2>
+      <div class="help-grid">
+        <div><h3>Steuerung</h3>
+          <ul class="help">
+            <li><b>Linker Daumen:</b> irgendwo links auf den Bildschirm tippen und ziehen, um zu laufen.</li>
+            <li><b>Rechter Daumen:</b> rechts wischen, um die Kamera zu drehen.</li>
+            <li><b>Sprung:</b> über kleine Gegner, Felsen und Boss-Schockwellen springen.</li>
+            <li><b>Sprint:</b> kurzer, unverwundbarer Spurt.</li>
+            <li>Am Computer: WASD, Leertaste, Umschalt, Q/E für die Kamera, Esc für Pause.</li>
+          </ul>
+        </div>
+        <div><h3>Ablauf</h3>
+          <ul class="help">
+            <li>Deine Waffen feuern von selbst. Sammle die Kristalle für Erfahrung.</li>
+            <li>Bei jedem Stufenaufstieg wählst du neue Waffen, Waffen-Verbesserungen oder Bücher.</li>
+            <li>Gold öffnet Truhen. Lila Truhen von Elite-Gegnern und Bossen sind gratis.</li>
+            <li>Bleib in einem Schrein-Kreis stehen, um einen Segen zu bekommen.</li>
+            <li>Zwischenbosse kommen nach 5 und 10 Minuten, der Endboss nach 15 Minuten.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="panel-foot"><button class="btn" data-close="help">Verstanden</button></div>
+    </div>
+  </div>
+
+  <!-- Rundenende -->
+  <div id="modal-over" class="modal" hidden>
+    <div class="panel wide">
+      <h2 id="over-title" class="over-title">Besiegt!</h2>
+      <p id="over-sub" class="muted"></p>
+      <p id="over-best" class="best" hidden>Neuer Rekord!</p>
+      <div id="over-stats" class="statgrid six"></div>
+      <table class="wtable"><thead><tr><th></th><th>Waffe</th><th class="num">Schaden</th><th class="num">Besiegt</th></tr></thead><tbody id="over-weapons"></tbody></table>
+      <div class="panel-foot">
+        <button id="btn-again" class="btn">Nochmal</button>
+        <button id="btn-heroes" class="btn ghost">Heldenauswahl</button>
+        <button id="btn-menu" class="btn ghost">Hauptmenü</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rotate-hint" class="rotate-hint" hidden>Tipp: Dreh dein Handy quer, dann siehst du mehr.</div>
+  <div id="loading" class="loading">Lade Welt …</div>
+</div>
+
+<script src="js/three.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/core.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/bosses.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  // Erst starten, wenn die Schriften da sind (oder nach kurzer Wartezeit).
+  (function () {
+    var started = false;
+    function go() {
+      if (started) return;
+      started = true;
+      try { boot(); } catch (e) {
+        document.getElementById('loading').textContent = 'Das Spiel konnte nicht starten: ' + (e && e.message ? e.message : e);
+        throw e;
+      }
+      document.getElementById('loading').hidden = true;
+    }
+    if (document.fonts && document.fonts.load) {
+      Promise.all([document.fonts.load('40px "Lilita One"'), document.fonts.load('900 16px Nunito')]).then(go, go);
+      setTimeout(go, 1500);
+    } else go();
+  })();
+</script>
+</body>
+</html>
