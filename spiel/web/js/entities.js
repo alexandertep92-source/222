@@ -34,6 +34,7 @@ class Instancer {
   }
   end() {
     this.mesh.count = this.n;
+    this.mesh.visible = this.n > 0; // leere Meshes kosten sonst trotzdem einen Draw-Call
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
@@ -134,7 +135,7 @@ function createPlayer(charDef) {
     x: 0, z: 0, y, px: 0, pz: 0, py: y, vx: 0, vz: 0, vy: 0,
     facing: 0, pfacing: 0, grounded: true, jumpsLeft: 1, coyote: 0, jumpBuffer: 0,
     hp: 100, iframes: 0, dashT: 0, dashCd: 0, dashX: 0, dashZ: 1,
-    moving: false, flash: 0, swingT: 0, landK: 0, wet: false, splashT: 0,
+    moving: false, flash: 0, swingT: 0, landK: 0, wet: false, splashT: 0, slowT: 0, slowAmt: 0,
     animT: 0, blinkT: 2, airArm: 0, lean: 0,
     model, shadow,
   };
@@ -151,7 +152,8 @@ function updatePlayer(dt) {
   p.moving = ml > 0.05;
   const gh0 = groundHeight(p.x, p.z);
   p.wet = gh0 < CONFIG.WATER_LEVEL - 0.1 && p.y < CONFIG.WATER_LEVEL + 0.2;
-  const speed = s.speed * (p.wet ? 0.8 : 1);
+  if (p.slowT > 0) p.slowT -= dt;
+  const speed = s.speed * (p.wet ? 0.8 : 1) * (p.slowT > 0 ? 1 - p.slowAmt : 1);
   const tx = mx * speed, tz = mz * speed;
   // Beschleunigen und Bremsen als Vektor: weiche Kurven, schnelles Umdrehen
   let accel;
@@ -280,8 +282,11 @@ function renderPlayer(a, dt) {
   m.visible = !flick;
   for (const mt of u.mats) {
     if (!mt.userData.baseEmissive) mt.userData.baseEmissive = mt.emissive.clone();
-    if (p.flash > 0) mt.emissive.setRGB(0.9, 0.12, 0.12); else mt.emissive.copy(mt.userData.baseEmissive);
+    if (p.flash > 0) mt.emissive.setRGB(0.9, 0.12, 0.12);
+    else if (p.slowT > 0) mt.emissive.setRGB(0.06, 0.2, 0.4);
+    else mt.emissive.copy(mt.userData.baseEmissive);
   }
+  if (p.slowT > 0 && Math.random() < 0.4) spawnSpark(x + rand(-0.45, 0.45), y + rand(0.2, 1.6), z + rand(-0.45, 0.45), 0, -0.6, 0, 0.5, 0.32, 0xbff4ff, 0);
   const gh = groundHeight(x, z);
   if (p.shadow.visible) {
     p.shadow.position.set(x, gh + 0.06, z);
@@ -289,7 +294,7 @@ function renderPlayer(a, dt) {
   }
 }
 
-function hurtPlayer(amount) {
+function hurtPlayer(amount, src) {
   const p = G.player;
   if (p.iframes > 0 || p.dashT > 0 || G.god || G.state !== 'playing') return;
   if (Math.random() < G.stats.evasion) {
@@ -300,6 +305,7 @@ function hurtPlayer(amount) {
   const dmg = amount * (1 - G.stats.armor);
   p.hp -= dmg; p.iframes = 0.6; p.flash = 0.15;
   G.damageTaken += dmg;
+  if (src) G.hurtBy[src] = (G.hurtBy[src] || 0) + dmg;
   G.shake = Math.min(1, G.shake + 0.35);
   Sound.hurt(); vibrate(35);
   UI.hurtFlash();
@@ -318,14 +324,26 @@ function healPlayer(amount) {
 }
 
 // ---------- Gegner ----------
-const ENEMY_COLORS = { slime: 0x6fdc5a, skeleton: 0xe9e4d4, bat: 0x7a55a0, spitter: 0xe85d9c, golem: 0x8e9199, ghost: 0xdff3ff, darkKnight: 0x4a4258 };
+const ENEMY_COLORS = {
+  slime: 0x6fdc5a, skeleton: 0xe9e4d4, bat: 0x7a55a0, spitter: 0xe85d9c, golem: 0x8e9199, ghost: 0xdff3ff, darkKnight: 0x4a4258,
+  wisp: 0x8ff7ff, bomber: 0xe8423a, bigSlime: 0x5aa9ff, boar: 0x8a5a38, frost: 0x9fe6ff, shaman: 0x7cc35a, shieldBearer: 0x9aa3b5,
+};
+// Punkt im Gegner-Modell (lokal ox/oy/oz) in Weltkoordinaten
+const _wp = { x: 0, y: 0, z: 0 };
+function enemyPoint(x, y, z, rot, s, ox, oy, oz) {
+  const c = Math.cos(rot), sn = Math.sin(rot);
+  _wp.x = x + (ox * c + oz * sn) * s; _wp.y = y + oy * s; _wp.z = z + (-ox * sn + oz * c) * s;
+  return _wp;
+}
 const Enemies = {
-  inst: {}, shadows: null, pool: [],
+  inst: {}, shadows: null, pool: [], queue: [],
   init() {
     for (const id of Object.keys(ENEMIES)) {
-      const ghost = id === 'ghost';
-      const m = mat({ vertexColors: true, rim: 0.3, rough: id === 'slime' ? 0.32 : id === 'golem' ? 0.95 : 0.7, transparent: ghost, opacity: ghost ? 0.8 : 1 });
-      this.inst[id] = new Instancer(enemyGeometry(id), m, CONFIG.MAX_ENEMIES + 60, true, !ghost && Settings.quality === 'high');
+      const ghost = id === 'ghost', wisp = id === 'wisp';
+      const rough = id === 'slime' || id === 'bigSlime' ? 0.32 : id === 'golem' ? 0.95 : 0.7;
+      const m = wisp ? new THREE.MeshBasicMaterial({ vertexColors: true })
+        : mat({ vertexColors: true, rim: 0.3, rough, transparent: ghost, opacity: ghost ? 0.8 : 1 });
+      this.inst[id] = new Instancer(enemyGeometry(id), m, CONFIG.MAX_ENEMIES + 60, true, !ghost && !wisp && Settings.quality === 'high');
     }
     this.shadows = new Instancer(new THREE.CircleGeometry(0.5, 14).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }), CONFIG.MAX_ENEMIES + 80);
@@ -351,6 +369,10 @@ const Enemies = {
       spawnT: opts.instant ? 0 : 0.5,
       shootT: def.ranged ? rand(1, def.ranged.cd) : 0,
       phase: Math.random() * TAU,
+      fuseT: 0, warn: null, mode: 0, modeT: 0, cdx: 0, cdz: 1,
+      chargeCd: def.charge ? rand(1, def.charge.cd) : 0,
+      healT: def.heal ? rand(1.5, def.heal.cd) : 0,
+      rootT: 0, confT: 0, confA: 0,
     });
     e.hitT.fill(0);
     G.enemies.push(e);
@@ -359,6 +381,17 @@ const Enemies = {
   },
   update(dt) {
     const p = G.player, list = G.enemies, t = G.time;
+    // Riesenschleime zerfallen in kleine Schleime (gesammelt, damit keine Liste während einer Schleife wächst)
+    if (this.queue.length) {
+      for (const q of this.queue) {
+        for (let k = 0; k < q.n && list.length < CONFIG.MAX_ENEMIES + 40; k++) {
+          const a = (k / q.n) * TAU + Math.random();
+          const c = this.spawn(q.type, q.x + Math.sin(a) * 0.4, q.z + Math.cos(a) * 0.4, { instant: true, hpMul: 0.8 });
+          c.kvx = Math.sin(a) * 5; c.kvz = Math.cos(a) * 5; c.avy = 6.5; c.ay = 0.001;
+        }
+      }
+      this.queue.length = 0;
+    }
     Grid.rebuild(list);
     const H = CONFIG.MAP_HALF + 2, pr = 0.45;
     for (let i = 0; i < list.length; i++) {
@@ -383,26 +416,85 @@ const Enemies = {
         if (e.ay <= 0) { e.ay = 0; e.avy = 0; e.landAt = t; e.vx = e.vz = 0; e.spin = 0; }
         continue;
       }
+      const def = e.def;
       const dx = p.x - e.x, dz = p.z - e.z;
       const d = Math.hypot(dx, dz) || 0.001;
-      let mx = dx / d, mz = dz / d;
-      let sp = e.speed * (e.slowT > 0 ? 1 - e.slow : 1) * (e.spawnT > 0 ? 0.25 : 1);
+      let mx = dx / d, mz = dz / d, face = Math.atan2(dx, dz);
+      const slowK = e.slowT > 0 ? 1 - e.slow : 1;
+      let sp = e.speed * slowK * (e.spawnT > 0 ? 0.25 : 1);
       // kurz vor dem Spieler abbremsen statt hineinzudrängen (kein Zittern)
       const rr = e.r + pr;
-      if (!e.def.fly) sp *= smoothstep(rr * 0.8, rr * 1.6, d) * 0.85 + 0.15;
-      const rg = e.def.ranged;
-      if (rg) {
-        if (d < rg.keep) { mx = -mx * 0.5; mz = -mz * 0.5; } else if (d < rg.keep + 2.5) sp *= 0.1;
-        e.shootT -= dt;
-        if (e.shootT <= 0 && d < rg.range) {
-          e.shootT = rg.cd * rand(0.85, 1.15);
-          fireEnemyOrb(e.x, e.y + 1.1, e.z, dx / d, dz / d, rg.speed, rg.dmg * enemyDmgScale(t / 60), 0xff6ab0);
-          e.hitAt = t - 0.05;
+      if (!def.fly) sp *= smoothstep(rr * 0.8, rr * 1.6, d) * 0.85 + 0.15;
+      // Knallpilz: Zündschnur läuft, dann Rumms
+      const fu = def.fuse;
+      if (fu) {
+        if (e.fuseT > 0) {
+          e.fuseT -= dt; sp *= 0.12;
+          if (e.fuseT <= 0) { bomberBlast(e); continue; }
+        } else if (d < fu.range && e.spawnT <= 0 && e.confT <= 0) {
+          e.fuseT = fu.time;
+          e.warn = warnFx(e.x, e.z, fu.r * e.scale, fu.time);
+          e.warn.follow = e;
+          Sound.fuse();
         }
       }
-      const k = Math.min(1, dt * 7);
-      e.vx += (mx * sp - e.vx) * k; e.vz += (mz * sp - e.vz) * k;
-      e.rot += angleDiff(e.rot, Math.atan2(dx, dz)) * Math.min(1, dt * 7);
+      if (e.rootT > 0) { e.rootT -= dt; sp = 0; }
+      if (e.confT > 0) {
+        // verwirrt (Rauchbombe): irrt umher, greift nicht an
+        e.confT -= dt;
+        if (Math.random() < dt * 1.5) e.confA = Math.random() * TAU;
+        mx = Math.sin(e.confA); mz = Math.cos(e.confA); face = e.confA;
+        sp = e.rootT > 0 ? 0 : e.speed * 0.5 * slowK;
+        e.mode = 0;
+      } else {
+        const rg = def.ranged, keep = rg ? rg.keep : def.keep;
+        if (keep) {
+          if (d < keep) { mx = -mx * 0.5; mz = -mz * 0.5; } else if (d < keep + 2.5) sp *= 0.1;
+        }
+        if (rg) {
+          e.shootT -= dt;
+          if (e.shootT <= 0 && d < rg.range) {
+            e.shootT = rg.cd * rand(0.85, 1.15);
+            fireEnemyOrb(e.x, e.y + 1.1, e.z, dx / d, dz / d, rg.speed, rg.dmg * enemyDmgScale(t / 60), rg.color, rg.slow, rg.slowT);
+            e.hitAt = t - 0.05;
+          }
+        }
+        // Irrlichter fliegen in Schlangenlinien
+        if (def.swarm) {
+          const w = Math.sin(t * 3.2 + e.phase) * 0.75;
+          mx += (-dz / d) * w; mz += (dx / d) * w;
+        }
+        // Schamane heilt die Gegner um sich herum
+        const hl = def.heal;
+        if (hl && e.spawnT <= 0) {
+          e.healT -= dt;
+          if (e.healT <= 0) { e.healT = hl.cd * rand(0.9, 1.1); shamanHeal(e, hl); }
+        }
+        // Keiler: scharren, dann geradeaus losstürmen
+        const ch = def.charge;
+        if (ch) {
+          e.chargeCd -= dt;
+          if (e.mode === 1) {
+            e.modeT -= dt; sp = 0;
+            if (Math.random() < 0.3) smokeBurst(e.x - Math.sin(e.rot) * 0.7, e.y + 0.1, e.z - Math.cos(e.rot) * 0.7, 1, 0xd8c9a8, 0.7, 1.2);
+            if (e.modeT <= 0) { e.mode = 2; e.modeT = ch.time; e.cdx = Math.sin(e.rot); e.cdz = Math.cos(e.rot); Sound.charge(); }
+          } else if (e.mode === 0 && e.chargeCd <= 0 && d > ch.min && d < ch.max && e.spawnT <= 0 && e.rootT <= 0) {
+            e.mode = 1; e.modeT = ch.windup;
+            addText(e.x, e.y + e.h + 0.7, e.z, '!', '#ff6a3a');
+          }
+        }
+      }
+      if (e.mode === 2) {
+        e.modeT -= dt;
+        const cs = e.rootT > 0 ? 0 : def.charge.speed * slowK;
+        e.vx = e.cdx * cs; e.vz = e.cdz * cs;
+        if (Math.random() < 0.5) smokeBurst(e.x - e.cdx * 0.8, e.y + 0.15, e.z - e.cdz * 0.8, 1, 0xd8c9a8, 0.8, 1.5);
+        if (e.modeT <= 0 || e.rootT > 0) { e.mode = 0; e.chargeCd = def.charge.cd * rand(0.8, 1.2); }
+      } else {
+        const k = Math.min(1, dt * 7);
+        e.vx += (mx * sp - e.vx) * k; e.vz += (mz * sp - e.vz) * k;
+        e.rot += angleDiff(e.rot, face) * Math.min(1, dt * (e.mode === 1 ? 12 : 7));
+      }
       e.x += (e.vx + e.kvx) * dt;
       e.z += (e.vz + e.kvz) * dt;
       const decay = Math.exp(-6 * dt);
@@ -445,12 +537,12 @@ const Enemies = {
       e.x = clamp(e.x, -H, H); e.z = clamp(e.z, -H, H);
       const gh = groundHeight(e.x, e.z);
       e.y = gh + e.ay + (e.def.fly ? e.def.fly + Math.sin(t * 3 + e.phase) * 0.3 : 0);
-      if (e.ay > 0 || e.spawnT > 0) continue;
+      if (e.ay > 0 || e.spawnT > 0 || e.confT > 0) continue;
       const dx = e.x - p.x, dz = e.z - p.z, rr = e.r + pr;
       const d2 = dx * dx + dz * dz;
       if (d2 < (rr + 0.12) * (rr + 0.12)) {
         if (p.y < e.y + e.h - 0.05 && p.y + 1.7 > e.y) {
-          hurtPlayer(e.dmg);
+          hurtPlayer(e.mode === 2 ? e.dmg * 1.4 : e.dmg, e.type);
           if (!e.def.fly && d2 < rr * rr * 0.8) {
             const d = Math.sqrt(d2) || 0.01, push = (rr * 0.9 - d) / d * 0.3;
             e.x += dx * push; e.z += dz * push;
@@ -482,20 +574,52 @@ const Enemies = {
       let y = ilerp(e.py, e.y, a);
       let sx = e.scale, sy = e.scale, sz = e.scale, tilt = 0, roll = 0;
       const moveK = clamp(Math.hypot(e.vx, e.vz) / Math.max(e.speed, 0.1), 0, 1);
-      if (e.type === 'slime') {
-        const b = Math.sin(t * 9 + e.phase);
-        sy *= 1 + b * 0.14; sx *= 1 - b * 0.07; sz *= 1 - b * 0.07;
-        y += Math.max(0, b) * 0.12 * moveK;
-      } else if (e.type === 'bat') {
+      const ty = e.type, rot = ilerp(e.prot, e.rot, a);
+      let r = 1, g = 1, b = 1;
+      if (ty === 'slime' || ty === 'bigSlime') {
+        const big = ty === 'bigSlime', bb = Math.sin(t * (big ? 6 : 9) + e.phase);
+        sy *= 1 + bb * 0.14; sx *= 1 - bb * 0.07; sz *= 1 - bb * 0.07;
+        y += Math.max(0, bb) * (big ? 0.2 : 0.12) * moveK;
+      } else if (ty === 'bat') {
         sx *= 0.75 + Math.abs(Math.sin(t * 16 + e.phase)) * 0.45;
-      } else if (e.type === 'ghost') {
+      } else if (ty === 'ghost') {
         y += Math.sin(t * 2 + e.phase) * 0.2;
         tilt = 0.15;
+      } else if (ty === 'wisp') {
+        y += Math.sin(t * 5 + e.phase) * 0.15;
+        roll = Math.sin(t * 3.2 + e.phase) * 0.4; tilt = 0.15;
+        if (!e.dying) FX.glow.add(x, y + 0.32, z, 1.7, 0.45, 0.95, 1, 0.5);
       } else {
-        const st = t * (6 + e.speed * 1.5) + e.phase;
-        y += Math.abs(Math.sin(st)) * 0.12 * moveK;
+        const fast = e.mode === 2 ? 2.2 : 1;
+        const st = t * (6 + e.speed * 1.5) * fast + e.phase;
+        y += Math.abs(Math.sin(st)) * 0.12 * Math.max(moveK, e.mode === 2 ? 1 : 0);
         roll = Math.sin(st) * 0.1 * moveK;
-        tilt = 0.08 * moveK;
+        tilt = e.mode === 2 ? 0.28 : 0.08 * moveK;
+        if (e.mode === 1) {
+          roll = Math.sin(t * 34) * 0.07; tilt = -0.12;
+          const pu = 0.5 + 0.5 * Math.sin(t * 22);
+          r = 1.3 + pu * 0.6; g = b = 0.75;
+        }
+        if (ty === 'bomber' && !e.dying) {
+          const wp = enemyPoint(x, y, z, rot, e.scale, 0, 1.52, 0.05);
+          if (e.fuseT > 0) {
+            const k = 1 - e.fuseT / e.def.fuse.time, s2 = 1 + k * 0.35 + Math.sin(t * 40) * 0.04 * k;
+            sx *= s2; sy *= s2; sz *= s2;
+            if (Math.sin(t * (14 + k * 34)) > 0) { r = 2.3; g = b = 1.1; }
+            FX.glow.add(wp.x, wp.y, wp.z, 0.9 + Math.random() * 0.5, 1, 0.6, 0.2, 0.95);
+          } else FX.glow.add(wp.x, wp.y, wp.z, 0.45 + Math.random() * 0.2, 1, 0.7, 0.3, 0.7);
+        } else if (ty === 'frost' && !e.dying) {
+          const wp = enemyPoint(x, y, z, rot, e.scale, 0.44, 0.98, 0.46);
+          FX.glow.add(wp.x, wp.y, wp.z, 1.0, 0.55, 0.9, 1, 0.45);
+        } else if (ty === 'shaman' && !e.dying) {
+          const wp = enemyPoint(x, y, z, rot, e.scale, 0.46, 1.74, 0.22);
+          FX.glow.add(wp.x, wp.y, wp.z, 1.3 + Math.exp(-(t - e.hitAt) * 4) * 2, 0.45, 1, 0.5, 0.55);
+        }
+      }
+      if (e.confT > 0 && !e.dying) {
+        const ca = t * 6 + e.phase;
+        FX.glow.add(x + Math.sin(ca) * 0.4, y + e.h + 0.25, z + Math.cos(ca) * 0.4, 0.4, 1, 0.9, 0.4, 0.9);
+        FX.glow.add(x - Math.sin(ca) * 0.4, y + e.h + 0.25, z - Math.cos(ca) * 0.4, 0.4, 1, 0.9, 0.4, 0.9);
       }
       // Treffer: kurz zusammenquetschen; Landung: abfedern; Auftauchen: aus dem Boden wachsen
       const hk = Math.exp(-(t - e.hitAt) * 14), lk = Math.exp(-(t - e.landAt) * 10);
@@ -510,9 +634,8 @@ const Enemies = {
         const k = Math.max(0, e.dyingT / 0.35);
         tilt = e.spin; sx *= k; sy *= k; sz *= k;
       }
-      let r = 1, g = 1, b = 1;
-      if (e.flash > 0) { r = g = b = 2.4; } else if (e.elite) { r = 1.5; g = 1.2; b = 0.45; }
-      inst.add(x, y, z, tilt, ilerp(e.prot, e.rot, a), roll, sx, sy, sz, r, g, b);
+      if (e.flash > 0) { r = g = b = 2.4; } else if (e.elite) { r *= 1.5; g *= 1.2; b *= 0.45; }
+      inst.add(x, y, z, tilt, rot, roll, sx, sy, sz, r, g, b);
       if (blob && !e.dying) {
         const s = e.r * 2.1;
         sh.add(x, groundHeight(x, z) + 0.05, z, 0, 0, 0, s, 1, s);
@@ -529,6 +652,14 @@ function damageEnemy(e, amount, w, dirX, dirZ, knock) {
   let dmg = amount * rand(0.9, 1.1);
   const crit = Math.random() < G.stats.crit;
   if (crit) dmg *= G.stats.critDmg;
+  // Schildträger blocken alles, was von vorn kommt (Flächenschaden von oben trifft voll)
+  let blocked = false;
+  if (e.def.shield && !e.boss && e.ay <= 0 && e.confT <= 0 && (dirX || dirZ)) {
+    if (dirX * Math.sin(e.rot) + dirZ * Math.cos(e.rot) < -0.3) {
+      dmg *= 1 - e.def.shield; knock = (knock || 0) * 0.35; blocked = true;
+      if (Math.random() < 0.35) sparkBurst(e.x + Math.sin(e.rot) * 0.75 * e.scale, e.y + 1.1 * e.scale, e.z + Math.cos(e.rot) * 0.75 * e.scale, 3, 0xdfe9ff, 4, 0.3);
+    }
+  }
   const dealt = Math.min(dmg, Math.max(0, e.hp));
   e.hp -= dmg;
   e.flash = 0.08;
@@ -540,7 +671,7 @@ function damageEnemy(e, amount, w, dirX, dirZ, knock) {
     e.kvx += dirX * k; e.kvz += dirZ * k;
     if (k >= 8 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.45, 10); e.ay = 0.001; }
   }
-  addNumber(e.x, e.y + e.h + 0.2, e.z, dmg, crit);
+  addNumber(e.x, e.y + e.h + 0.2, e.z, dmg, crit, blocked && Settings.numbers ? '#a9bccf' : undefined);
   if (crit) sparkBurst(e.x, e.y + e.h * 0.6, e.z, 4, 0xffd23f, 4, 0.3);
   if (e.hp <= 0) killEnemy(e, w, dirX, dirZ);
 }
@@ -550,6 +681,11 @@ function killEnemy(e, w, dx, dz) {
   if (w) w.kills++;
   if (e.boss) { onBossKilled(e); return; }
   G.kills++;
+  if (e.warn) { e.warn.done = true; e.warn = null; }
+  const sd = e.def.split;
+  if (sd) Enemies.queue.push({ type: sd.into, n: sd.n + (e.elite ? 3 : 0), x: e.x, z: e.z });
+  // Ein abgeschossener Knallpilz explodiert mitten in seinen Freunden
+  if (e.def.fuse) EnemyShots.blasts.push({ x: e.x, z: e.z, r: e.def.fuse.r * e.scale, dmg: e.maxHp * 1.2 });
   e.dying = true; e.dyingT = 0.35;
   e.vy = 6 + Math.random() * 4; e.yOff = e.ay;
   const l = Math.hypot(dx || 0, dz || 0) || 1;
@@ -568,10 +704,38 @@ function killEnemy(e, w, dx, dz) {
   if (e.elite) spawnChest(e.x, e.z, true);
 }
 
+function bomberBlast(e) {
+  const fu = e.def.fuse, r = fu.r * e.scale, p = G.player, gy = groundHeight(e.x, e.z);
+  if ((p.x - e.x) ** 2 + (p.z - e.z) ** 2 < (r + 0.3) ** 2 && p.y - gy < 2.5) hurtPlayer(fu.dmg * enemyDmgScale(G.time / 60), 'bomber');
+  e.alive = false; e.dead = true;
+  if (e.warn) { e.warn.done = true; e.warn = null; }
+  ringFx(e.x, e.z, r, 0xff5a3a, 0.35);
+  Effects.add('disc', e.x, e.z, { color: 0xff7a3a, dur: 0.25, r0: r * 0.4, r1: r, op: 0.5, ease: true });
+  spawnSpark(e.x, gy + 0.8, e.z, 0, 0, 0, 0.18, r * 2.4, 0xffe0a0, 0);
+  sparkBurst(e.x, gy + 0.6, e.z, 14, 0xff7a3a, 7, 0.45);
+  smokeBurst(e.x, gy + 0.6, e.z, 6, 0x8a7a70, r * 0.9, 2.5);
+  spawnBurst(e.x, gy + 0.6, e.z, 6, 0xe8423a, 6, 0.35);
+  Sound.boom();
+  G.shake = Math.min(1, G.shake + 0.15);
+}
+
+function shamanHeal(e, hl) {
+  Grid.query(e.x, e.z, hl.r, (o) => {
+    if (o === e || o.boss || o.hp >= o.maxHp) return;
+    o.hp = Math.min(o.maxHp, o.hp + o.maxHp * hl.pct);
+    spawnSpark(o.x, o.y + o.h + 0.2, o.z, 0, 2.2, 0, 0.6, 0.55, 0x7dff8a, 0);
+  });
+  ringFx(e.x, e.z, hl.r, 0x7dff8a, 0.6, 0.15);
+  if ((e.x - G.player.x) ** 2 + (e.z - G.player.z) ** 2 < 400) Sound.heal();
+  const wp = enemyPoint(e.x, e.y, e.z, e.rot, e.scale, 0.46, 1.74, 0.22);
+  sparkBurst(wp.x, wp.y, wp.z, 6, 0x9dffa6, 3, 0.35);
+  e.hitAt = G.time - 0.05;
+}
+
 // ---------- Gegner-Geschosse und Gefahren ----------
-const EnemyShots = { list: [], inst: null, waves: [], rocks: [] };
-function fireEnemyOrb(x, y, z, dx, dz, speed, dmg, color) {
-  EnemyShots.list.push({ x, y, z, px: x, py: y, pz: z, vx: dx * speed, vz: dz * speed, life: 5, dmg, r: 0.35, color: new THREE.Color(color) });
+const EnemyShots = { list: [], inst: null, waves: [], rocks: [], blasts: [] };
+function fireEnemyOrb(x, y, z, dx, dz, speed, dmg, color, slow, slowT) {
+  EnemyShots.list.push({ x, y, z, px: x, py: y, pz: z, vx: dx * speed, vz: dz * speed, life: 5, dmg, r: 0.35, color: new THREE.Color(color || 0xff6ab0), slow: slow || 0, slowT: slowT || 0 });
 }
 function updateEnemyShots(dt) {
   const p = G.player, list = EnemyShots.list;
@@ -583,11 +747,20 @@ function updateEnemyShots(dt) {
     if (s.low) s.y = gh + 0.55;
     let hit = false;
     const dx = s.x - p.x, dz = s.z - p.z;
-    if (dx * dx + dz * dz < (s.r + 0.45) ** 2 && p.y < s.y + s.r && p.y + 1.7 > s.y - s.r) { hurtPlayer(s.dmg); hit = true; }
+    if (dx * dx + dz * dz < (s.r + 0.45) ** 2 && p.y < s.y + s.r && p.y + 1.7 > s.y - s.r) {
+      hurtPlayer(s.dmg, s.slow ? 'frost' : 'spitter'); hit = true;
+      if (s.slow && p.dashT <= 0) { p.slowT = Math.max(p.slowT, s.slowT); p.slowAmt = s.slow; }
+    }
     if (hit || s.life <= 0 || s.y < gh - 0.2) {
       sparkBurst(s.x, s.y, s.z, 5, s.color.getHex(), 3, 0.3);
       list.splice(i, 1);
     }
+  }
+  // Explosionen abgeschossener Knallpilze (Kettenreaktion im nächsten Schritt)
+  if (EnemyShots.blasts.length) {
+    const bl = EnemyShots.blasts;
+    EnemyShots.blasts = [];
+    for (const b of bl) explode(b.x, b.z, b.r, b.dmg, null, 6, 0xff6a3a);
   }
   // Schockwellen (Bosse): überspringen!
   for (let i = EnemyShots.waves.length - 1; i >= 0; i--) {
@@ -595,7 +768,7 @@ function updateEnemyShots(dt) {
     w.R += w.speed * dt;
     const d = Math.hypot(p.x - w.x, p.z - w.z);
     const feet = p.y - groundHeight(p.x, p.z);
-    if (!w.hit && Math.abs(d - w.R) < 0.9 && feet < 0.9) { w.hit = true; hurtPlayer(w.dmg); }
+    if (!w.hit && Math.abs(d - w.R) < 0.9 && feet < 0.9) { w.hit = true; hurtPlayer(w.dmg, 'boss'); }
     w.mesh.scale.set(w.R, 1, w.R);
     w.mesh.position.set(w.x, groundHeight(w.x, w.z) + 0.3, w.z);
     w.mesh.material.opacity = 0.8 * (1 - w.R / w.maxR);
@@ -606,7 +779,7 @@ function updateEnemyShots(dt) {
     const r = EnemyShots.rocks[i];
     r.t += dt;
     if (r.t >= r.T) {
-      if (Math.hypot(p.x - r.tx, p.z - r.tz) < r.r + 0.4 && p.y - groundHeight(p.x, p.z) < 2) hurtPlayer(r.dmg);
+      if (Math.hypot(p.x - r.tx, p.z - r.tz) < r.r + 0.4 && p.y - groundHeight(p.x, p.z) < 2) hurtPlayer(r.dmg, 'boss');
       ringFx(r.tx, r.tz, r.r, 0x9a8a78, 0.35);
       spawnBurst(r.tx, groundHeight(r.tx, r.tz) + 0.3, r.tz, 10, 0x8a8478, 6, 0.55);
       smokeBurst(r.tx, groundHeight(r.tx, r.tz) + 0.4, r.tz, 6, 0xc9bfae, 2, 3);

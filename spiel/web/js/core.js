@@ -243,6 +243,14 @@ const Sound = {
     this.tone('sawtooth', 70, 50, 1.6, 0.35); this.tone('sawtooth', 105, 75, 1.6, 0.2);
     this.noise(1.2, 0.25, 200, 0.5, 'lowpass');
   },
+  fuse() { if (this.ok('fuse', 0.15)) this.noise(0.6, 0.12, 5000, 2, 'highpass', 0, 7000); },
+  charge() { if (this.ok('charge', 0.25)) { this.tone('sawtooth', 160, 70, 0.28, 0.12); this.noise(0.25, 0.18, 300, 1, 'lowpass'); } },
+  heal() { if (this.ok('heal', 0.4)) { this.tone('sine', 520, 880, 0.25, 0.08); } },
+  screech() { if (this.ok('screech', 0.5)) { this.tone('sawtooth', 2400, 1500, 0.18, 0.05); this.tone('sine', 2000, 1200, 0.2, 0.06); } },
+  whoom() { if (this.ok('whoom', 0.3)) { this.tone('sine', 90, 45, 0.7, 0.3); this.noise(0.6, 0.15, 250, 1, 'lowpass', 0, 90); } },
+  hum() { if (this.ok('hum', 0.3)) { this.tone('sawtooth', 180, 240, 0.5, 0.07); this.tone('sine', 360, 480, 0.5, 0.08); } },
+  puff() { if (this.ok('puff', 0.2)) this.noise(0.4, 0.3, 700, 0.8, 'lowpass', 0, 200); },
+  cannon() { if (this.ok('cannon', 0.08)) { this.tone('sine', 160, 60, 0.15, 0.25); this.noise(0.12, 0.2, 1200, 1, 'lowpass', 0, 300); } },
   stomp() { if (this.ok('stomp', 0.2)) { this.noise(0.5, 0.6, 400, 0.5, 'lowpass', 0, 50); this.tone('sine', 80, 30, 0.5, 0.5); } },
   win() { [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => this.tone('triangle', f, f, 0.25, 0.2, i * 0.12)); },
   lose() { [392, 330, 262, 196].forEach((f, i) => this.tone('triangle', f, f * 0.98, 0.35, 0.2, i * 0.22)); },

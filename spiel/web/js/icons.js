@@ -28,6 +28,17 @@ const Icons = (() => {
     bombs: ci(22, 29, 14, '#2b2b38') + hl('M14 24Q16 19 21 18') + st('M31 18Q34 10 39 9', '#8b5a2b', 3) + star(41, 8, 6, '#ffd84a'),
     quake: pa('M3 34L13 30L22 35L31 29L45 33V45H3Z', '#b07a46') + st('M21 35L24 40L20 45', '#5a3b22', 2) + pa('M10 21L16 18L18 24L12 26Z', '#8f8a7e') + pa('M30 14L37 13L36 20L30 20Z', '#8f8a7e') + pa('M21 8L25 7L25 12L21 12Z', '#8f8a7e'),
     mines: pa('M5 33Q24 20 43 33Q24 41 5 33Z', '#3a3a48') + pa('M17 29Q24 16 31 29Q24 32 17 29Z', '#ff3b3b') + hl('M21 25Q23 22 26 22') + ln(7, 33, 3, 37, '#8a8a9a', 2) + ln(41, 33, 45, 37, '#8a8a9a', 2),
+    // neue Waffen
+    lance: ln(6, 42, 32, 16, '#d9b47a', 4) + pa('M44 4L30 13L35 18Z', '#e8eef6') + hl('M41 7L33 13') + pa('M11 29L22 25L19 36Z', '#f4c542') + pa('M30 16L21 11L26 21Z', '#e63946'),
+    hammers: st('M8 30Q6 12 22 8Q38 6 40 20', '#fff0a8', 2.5) + `<circle cx="40" cy="20" r="2" fill="#fff6c8"/>` + ln(12, 42, 27, 27, '#8b5a2b', 4.5) + pa('M20 16L32 12L38 30L26 34Z', '#ffcf4a') + hl('M23 18L30 15'),
+    falcon: pa('M24 22Q15 9 3 13Q11 17 13 24Q18 27 24 32Q30 27 35 24Q37 17 45 13Q33 9 24 22Z', '#8a5a38') + pa('M24 28L20 40L24 37L28 40Z', '#6a4028') + ci(24, 19, 5.5, '#f4f1ea') + pa('M22 22L24 27L26 22Z', '#ffc93c') + `<circle cx="22" cy="18" r="1.3" fill="${O}"/><circle cx="26" cy="18" r="1.3" fill="${O}"/>`,
+    vines: st('M12 45Q12 33 22 30Q33 27 30 17Q28 10 20 12', '#3f9e55', 4.5) + pa('M15 36L9 33L14 31Z', '#8fd46a') + pa('M27 27L33 30L31 24Z', '#8fd46a') + pa('M30 18L36 15L32 13Z', '#8fd46a') + pa('M18 13Q12 4 22 3Q26 9 18 13Z', '#7cd36a') + ci(34, 38, 4, '#ff7aa8') + ci(34, 38, 1.6, '#ffe066'),
+    vortex: ci(24, 24, 18, '#2a0f45') + st('M24 24m-2 0a2 2 0 1 1 4 0a5 5 0 1 1 -10 0a8.5 8.5 0 1 1 17 0a12 12 0 1 1 -24 0', '#c58bff', 2.6) + ci(24, 24, 3, '#12051f'),
+    arcaneBeam: `<path d="M13 35L44 6" stroke="${O}" stroke-width="11" stroke-linecap="round"/><path d="M13 35L44 6" stroke="#a46bff" stroke-width="7" stroke-linecap="round"/><path d="M13 35L44 6" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>` + ci(11, 37, 7.5, '#c58bff') + hl('M8 35Q9 32 12 32') + star(36, 26, 5, '#fff6c8') + star(30, 8, 3.5, '#e8c8ff'),
+    smokeBomb: pa('M8 26Q4 18 12 15Q14 7 23 9Q30 4 36 11Q45 11 43 20Q47 28 39 30H13Q6 31 8 26Z', '#b6b0d0') + pa('M15 22Q14 17 19 17Q22 13 27 16', '#d8d4ea') + ci(23, 35, 9, '#2b2d42') + hl('M18 32Q19 29 22 28') + st('M28 28Q31 24 35 25', '#8b5a2b', 2.5) + star(36, 24, 4, '#ffd84a'),
+    kusarigama: `<path d="M8 41Q13 30 23 28" fill="none" stroke="${O}" stroke-width="6" stroke-dasharray="3.5 2.5"/><path d="M8 41Q13 30 23 28" fill="none" stroke="#9aa3b5" stroke-width="3" stroke-dasharray="3.5 2.5"/>` + ln(22, 31, 30, 22, '#d94a4a', 4) + pa('M28 24Q28 7 45 5Q35 11 33 26Z', '#e4eaf1') + hl('M31 20Q32 11 40 8') + ci(7, 42, 3.5, '#9aa3b5'),
+    turret: pa('M8 42L12 28H36L40 42Z', '#6a4428') + ln(14, 34, 34, 34, '#b3b9c4', 2) + ci(24, 25, 8, '#8a6a4a') + `<path d="M24 24L44 14" stroke="${O}" stroke-width="10" stroke-linecap="round"/><path d="M24 24L44 14" stroke="#2b2b38" stroke-width="6" stroke-linecap="round"/>` + ci(44, 14, 2.6, '#ffcf4a') + hl('M19 22Q21 19 24 19'),
+    pickaxe: ln(12, 42, 31, 17, '#8b5a2b', 4.5) + pa('M13 13Q28 1 44 16Q36 13 31 17Q27 13 13 13Z', '#b3b9c4') + hl('M18 12Q27 7 37 11') + ci(30, 16, 3, '#d9a04a'),
   };
 
   const book = (cover, sym) => pa('M11 6H37Q41 6 41 10V40Q41 43 38 43H12Q7 43 7 38V10Q7 6 11 6Z', cover)

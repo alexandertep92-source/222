@@ -41,16 +41,50 @@ an, wenn das Handy nicht hinterherkommt.
 
 ## Helden und ihre Waffen
 
-Jeder Held startet mit seiner ersten Waffe und schaltet die beiden anderen über
-Stufenaufstiege oder Truhen frei. Waffen anderer Helden gibt es nicht.
+Jeder Held hat fünf eigene Waffen. Er startet mit der ersten und schaltet weitere
+über Stufenaufstiege oder Truhen frei. Es gibt **vier Waffenplätze**, eine der
+fünf Waffen bleibt also immer im Schrank – welche, entscheidest du. Waffen
+anderer Helden gibt es nicht.
 
 | Held | Waffen | Passiv |
 |---|---|---|
-| **Ritter Bruno** (leicht) | Schwert, Heiliger Kreis, Schildwurf | +35 Max-LP, +8 % Rüstung |
-| **Jägerin Lyra** (mittel) | Langbogen, Pfeilregen, Wurfmesser | +10 % Krit-Chance, +15 % Projektiltempo |
-| **Magier Zappo** (schwer) | Blitzstab, Feuerball, Meteor | +20 % Erfahrung, +10 % Fläche |
-| **Ninja Kenji** (mittel) | Shuriken, Kunai, Drachenklinge | Doppelsprung, +15 % Tempo, +8 % Ausweichen |
-| **Zwerg Grumbel** (leicht) | Bomben, Erdbeben, Minen | +15 % Fläche, +0,6 LP/s Regeneration |
+| **Ritter Bruno** (leicht) | Schwert, Heiliger Kreis, Schildwurf, Lanzenstoß, Himmelshämmer | +35 Max-LP, +8 % Rüstung |
+| **Jägerin Lyra** (mittel) | Langbogen, Pfeilregen, Wurfmesser, Falke, Dornenranken | +10 % Krit-Chance, +15 % Projektiltempo |
+| **Magier Zappo** (schwer) | Blitzstab, Feuerball, Meteor, Schwarzes Loch, Arkanstrahl | +20 % Erfahrung, +10 % Fläche |
+| **Ninja Kenji** (mittel) | Shuriken, Kunai, Drachenklinge, Rauchbombe, Kettensichel | Doppelsprung, +15 % Tempo, +8 % Ausweichen |
+| **Zwerg Grumbel** (leicht) | Bomben, Erdbeben, Minen, Kanonenturm, Spitzhacken | +15 % Fläche, +0,6 LP/s Regeneration |
+
+Die neuen Waffen im Überblick:
+
+- **Lanzenstoß:** durchbohrt alle Gegner in einer langen Linie.
+- **Himmelshämmer:** goldene Hämmer drehen sich spiralförmig nach außen.
+- **Falke:** stößt auf Gegner herab und kehrt zu dir zurück.
+- **Dornenranken:** halten Gegner fest und stechen zu.
+- **Schwarzes Loch:** saugt Gegner an und schleudert sie am Ende weg.
+- **Arkanstrahl:** ein Strahl, der sich einmal um dich dreht.
+- **Rauchbombe:** verwirrte Gegner irren umher und greifen nicht an.
+- **Kettensichel:** wirbelt in einem weiten Kreis um dich herum.
+- **Kanonenturm:** baut einen Turm, der eine Weile selbst feuert.
+- **Spitzhacken:** fliegen im hohen Bogen und durchschlagen beim Fallen alles.
+
+## Gegner
+
+| Gegner | ab | Besonderheit |
+|---|---|---|
+| Schleim | 0:00 | langsam, kommt in Massen |
+| Knochenkerl | 0:40 | der Standard-Gegner |
+| Irrlicht | 1:20 | fliegt in Schwärmen von 5–7 in Schlangenlinien |
+| Fledermaus | 1:50 | schnell, fliegt |
+| Knallpilz | 2:40 | zündet neben dir seine Lunte – weg da! Abgeschossen explodiert er zwischen seinen Freunden |
+| Spucker | 3:30 | hält Abstand und spuckt Kugeln |
+| Riesenschleim | 3:30 | zerfällt in drei kleine Schleime |
+| Keiler | 4:30 | scharrt (rotes Blinken, „!“) und stürmt dann geradeaus los – zur Seite ausweichen |
+| Steinklotz | 5:40 | sehr zäh |
+| Frostwicht | 5:40 | Eiskugeln verlangsamen dich |
+| Goblin-Schamane | 7:00 | heilt alle Gegner um sich herum – zuerst erledigen |
+| Geist | 8:10 | fliegt durch Hindernisse |
+| Schildträger | 9:30 | blockt Treffer von vorn; Flächenschaden von oben (Meteor, Pfeilregen, Ranken …) trifft voll |
+| Schattenritter | 11:00 | stark und schnell |
 
 ## Ablauf einer Runde
 
@@ -87,7 +121,7 @@ gleichmäßig, egal ob das Handy 30, 60 oder 120 Bilder pro Sekunde schafft.
 | `web/js/world.js` | Landschaft, Teiche, Gras, Deko, Truhen und Schreine |
 | `web/js/models.js` | Helden, Gegner, Bosse und Porträts |
 | `web/js/entities.js` | Spielfigur, Gegner, Sammelobjekte, Partikel, Effekte |
-| `web/js/weapons.js` | Verhalten der 15 Waffen |
+| `web/js/weapons.js` | Verhalten der 25 Waffen |
 | `web/js/bosses.js` | Zwischenbosse und Endboss |
 | `web/js/game.js` | Rundenablauf, Eingabe, Kamera, Gegnerwellen, Kartenwahl, Hauptschleife |
 | `web/js/icons.js` | Eigene Symbole (SVG) für Waffen, Bücher und Knöpfe |

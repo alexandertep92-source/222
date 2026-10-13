@@ -86,7 +86,7 @@ function updateBosses(dt) {
         b.x = lerp(b.sx, b.tx, k); b.z = lerp(b.sz, b.tz, k);
         if (k >= 1) {
           addShockwave(b.x, b.z, 26, 12, b.dmg * 0.6);
-          if (d < b.r + 1.6 && p.y - groundHeight(p.x, p.z) < 1) hurtPlayer(b.dmg);
+          if (d < b.r + 1.6 && p.y - groundHeight(p.x, p.z) < 1) hurtPlayer(b.dmg, 'boss');
           ringFx(b.x, b.z, b.r + 3, 0xd9a066, 0.5, 0.2);
           spawnBurst(b.x, b.y + 0.3, b.z, 24, 0xb08a5a, 10, 0.8);
           Sound.stomp(); vibrate(60);
@@ -158,7 +158,7 @@ function updateBosses(dt) {
     // Berührung
     const ddx = p.x - b.x, ddz = p.z - b.z, dd = Math.hypot(ddx, ddz) || 0.01;
     if (dd < b.r + 0.45 && p.y < b.y + lift + b.h * 0.85 && p.y + 1.7 > b.y + lift) {
-      hurtPlayer(b.state === 'charge' ? b.dmg * 1.2 : b.dmg);
+      hurtPlayer(b.state === 'charge' ? b.dmg * 1.2 : b.dmg, 'boss');
       const push = (b.r + 0.45 - dd);
       p.x += (ddx / dd) * push; p.z += (ddz / dd) * push;
     }

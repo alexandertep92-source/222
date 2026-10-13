@@ -8,7 +8,7 @@ const CONFIG = {
   WATER_LEVEL: -3.3,      // Teiche in den Senken
   WORLD_HALF: 140,        // Gelände inkl. Randgebirge
   MAX_ENEMIES: 280,
-  MAX_WEAPONS: 3,
+  MAX_WEAPONS: 4,
   WEAPON_MAX_LEVEL: 12,
   REROLLS: 3,
   MINI_BOSSES: [
@@ -49,7 +49,8 @@ const WEAPON_UPGRADES = {
   bounces: { label: 'Sprünge', int: true, minRarity: 1 },
 };
 
-// type bestimmt das Verhalten (weapons.js). Jede Heldin / jeder Held hat drei eigene Waffen.
+// type bestimmt das Verhalten (weapons.js). Jede Heldin / jeder Held hat fünf eigene Waffen,
+// von denen bis zu vier gleichzeitig getragen werden.
 const WEAPONS = {
   // Ritter
   sword: {
@@ -69,6 +70,18 @@ const WEAPONS = {
     desc: 'Wirft einen Schild, der alles auf dem Hin- und Rückweg trifft.',
     damage: 20, cooldown: 2.0, area: 1.1, range: 12, speed: 17, amount: 1, knockback: 5,
     upgrades: ['damage', 'damage', 'cooldown', 'amount', 'area', 'speed'], maxAmount: 4,
+  },
+  lance: {
+    name: 'Lanzenstoß', type: 'thrust',
+    desc: 'Stößt eine lange Lanze nach vorn und durchbohrt alle Gegner in einer Linie.',
+    damage: 26, cooldown: 1.5, area: 1.0, range: 8, amount: 1, knockback: 7,
+    upgrades: ['damage', 'damage', 'cooldown', 'area', 'amount', 'knockback'], maxAmount: 4,
+  },
+  hammers: {
+    name: 'Himmelshämmer', type: 'spiral',
+    desc: 'Goldene Hämmer drehen sich in einer Spirale nach außen und treffen alles auf ihrem Weg.',
+    damage: 16, cooldown: 3.2, area: 1.0, amount: 3, duration: 1, speed: 4.2, range: 11, knockback: 5,
+    upgrades: ['damage', 'damage', 'cooldown', 'amount', 'area', 'duration'], maxAmount: 7,
   },
   // Jägerin
   longbow: {
@@ -91,6 +104,18 @@ const WEAPONS = {
     target: 'facing', knockback: 1.5,
     upgrades: ['damage', 'damage', 'cooldown', 'amount', 'pierce', 'speed'], maxAmount: 7,
   },
+  falcon: {
+    name: 'Falke', type: 'pet',
+    desc: 'Ein treuer Falke stößt auf Gegner herab und kehrt danach zu dir zurück.',
+    damage: 17, cooldown: 0.8, amount: 1, speed: 21, range: 22, area: 1.0, knockback: 3,
+    upgrades: ['damage', 'damage', 'cooldown', 'amount', 'speed', 'area'], maxAmount: 4,
+  },
+  vines: {
+    name: 'Dornenranken', type: 'root',
+    desc: 'Dornen schießen aus dem Boden, halten Gegner fest und stechen zu.',
+    damage: 8, cooldown: 4.2, area: 3.4, duration: 1, amount: 1, range: 17,
+    upgrades: ['damage', 'damage', 'cooldown', 'area', 'amount', 'duration'], maxAmount: 4,
+  },
   // Magier
   lightning: {
     name: 'Blitzstab', icon: '⚡', type: 'chain',
@@ -110,6 +135,18 @@ const WEAPONS = {
     desc: 'Ruft Meteore vom Himmel auf zufällige Gegner herab.',
     damage: 42, cooldown: 3.6, area: 3.3, amount: 1, range: 22, knockback: 8,
     upgrades: ['damage', 'damage', 'cooldown', 'amount', 'area'], maxAmount: 5,
+  },
+  vortex: {
+    name: 'Schwarzes Loch', type: 'vortex',
+    desc: 'Ein Strudel aus dunkler Magie saugt Gegner an und zermalmt sie.',
+    damage: 9, cooldown: 5.5, area: 4.2, duration: 1, amount: 1, range: 16,
+    upgrades: ['damage', 'damage', 'cooldown', 'area', 'duration', 'amount'], maxAmount: 3,
+  },
+  arcaneBeam: {
+    name: 'Arkanstrahl', type: 'beam',
+    desc: 'Ein Lichtstrahl dreht sich einmal um dich und brennt sich durch alle Gegner.',
+    damage: 13, cooldown: 3.6, area: 1.0, range: 11, duration: 1, amount: 1,
+    upgrades: ['damage', 'damage', 'cooldown', 'duration', 'amount', 'area'], maxAmount: 3,
   },
   // Ninja
   shuriken: {
@@ -131,6 +168,18 @@ const WEAPONS = {
     damage: 15, cooldown: 1.8, area: 1.3, range: 13, speed: 20, amount: 2, knockback: 3,
     upgrades: ['damage', 'damage', 'cooldown', 'amount', 'area', 'speed'], maxAmount: 6,
   },
+  smokeBomb: {
+    name: 'Rauchbombe', type: 'smoke',
+    desc: 'Eine Rauchwolke verwirrt Gegner: Sie irren umher, greifen nicht an und nehmen Schaden.',
+    damage: 7, cooldown: 6, area: 3.8, duration: 1, amount: 1,
+    upgrades: ['damage', 'damage', 'cooldown', 'area', 'duration', 'amount'], maxAmount: 3,
+  },
+  kusarigama: {
+    name: 'Kettensichel', type: 'whirl',
+    desc: 'Eine Sichel an einer Kette wirbelt in einem weiten Kreis um dich herum.',
+    damage: 21, cooldown: 2.2, area: 5.2, amount: 1, knockback: 7,
+    upgrades: ['damage', 'damage', 'cooldown', 'area', 'amount', 'knockback'], maxAmount: 3,
+  },
   // Zwerg
   bombs: {
     name: 'Bomben', icon: '💣', type: 'lob',
@@ -149,6 +198,18 @@ const WEAPONS = {
     desc: 'Legt Minen, die hochgehen, sobald Gegner darauf treten.',
     damage: 38, cooldown: 2.2, area: 3.5, amount: 1, duration: 14, knockback: 9,
     upgrades: ['damage', 'damage', 'cooldown', 'amount', 'area', 'duration'], maxAmount: 5,
+  },
+  turret: {
+    name: 'Kanonenturm', type: 'turret',
+    desc: 'Baut einen Kanonenturm, der eine Weile selbstständig auf Gegner feuert.',
+    damage: 13, cooldown: 9, duration: 1, amount: 1, range: 18, speed: 22, area: 1.0, knockback: 3,
+    upgrades: ['damage', 'damage', 'cooldown', 'duration', 'amount', 'area'], maxAmount: 3,
+  },
+  pickaxe: {
+    name: 'Spitzhacken', type: 'toss',
+    desc: 'Wirft Spitzhacken hoch in die Luft, die beim Herunterfallen alles durchschlagen.',
+    damage: 22, cooldown: 1.4, amount: 1, area: 1.0, pierce: 3, range: 11, knockback: 5,
+    upgrades: ['damage', 'damage', 'cooldown', 'amount', 'pierce', 'area'], maxAmount: 6,
   },
 };
 
@@ -176,51 +237,73 @@ const CHARACTERS = [
   {
     id: 'knight', name: 'Bruno', title: 'Ritter', icon: '🛡️', color: '#5b8def',
     desc: 'Robust und gern mittendrin. Haut alles weg, was ihm zu nahe kommt.',
-    weapons: ['sword', 'holyCircle', 'shieldThrow'],
+    weapons: ['sword', 'holyCircle', 'shieldThrow', 'lance', 'hammers'],
     stats: { maxHp: 135, speed: 6.6, armor: 0.08 },
     passive: '+35 Max-LP, +8 % Rüstung', difficulty: 'Leicht',
   },
   {
     id: 'archer', name: 'Lyra', title: 'Jägerin', icon: '🏹', color: '#3fae5a',
     desc: 'Trifft aus großer Entfernung und lässt es Pfeile regnen.',
-    weapons: ['longbow', 'arrowRain', 'knives'],
+    weapons: ['longbow', 'arrowRain', 'knives', 'falcon', 'vines'],
     stats: { maxHp: 100, speed: 7.2, crit: 0.15, projSpeed: 0.15 },
     passive: '+10 % Krit-Chance, +15 % Projektiltempo', difficulty: 'Mittel',
   },
   {
     id: 'mage', name: 'Zappo', title: 'Magier', icon: '🧙', color: '#9b5de5',
     desc: 'Zerbrechlich, aber seine Blitze und Meteore räumen ganze Horden ab.',
-    weapons: ['lightning', 'fireball', 'meteor'],
+    weapons: ['lightning', 'fireball', 'meteor', 'vortex', 'arcaneBeam'],
     stats: { maxHp: 90, speed: 6.9, xpGain: 0.2, area: 0.1 },
     passive: '+20 % Erfahrung, +10 % Fläche', difficulty: 'Schwer',
   },
   {
     id: 'ninja', name: 'Kenji', title: 'Ninja', icon: '🥷', color: '#2b2d42',
     desc: 'Der Schnellste von allen. Springt doppelt und weicht Treffern aus.',
-    weapons: ['shuriken', 'kunai', 'dragonBlade'],
+    weapons: ['shuriken', 'kunai', 'dragonBlade', 'smokeBomb', 'kusarigama'],
     stats: { maxHp: 90, speed: 7.9, jumps: 1, evasion: 0.08 },
     passive: 'Doppelsprung, +15 % Tempo, +8 % Ausweichen', difficulty: 'Mittel',
   },
   {
     id: 'dwarf', name: 'Grumbel', title: 'Zwerg', icon: '⛏️', color: '#e07a2f',
     desc: 'Langsam, zäh und laut. Alles explodiert irgendwann.',
-    weapons: ['bombs', 'quake', 'mines'],
+    weapons: ['bombs', 'quake', 'mines', 'turret', 'pickaxe'],
     stats: { maxHp: 120, speed: 6.3, area: 0.15, regen: 0.6 },
     passive: '+15 % Fläche, +0,6 LP/s Regeneration', difficulty: 'Leicht',
   },
 ];
 
 // h: Körperhöhe, fly: Flughöhe über dem Boden, mass: Widerstand gegen Rückstoß.
+// Besondere Fähigkeiten: ranged (Fernkampf), keep (hält Abstand), swarm (kommt im Schwarm),
+// fuse (explodiert neben dir), split (zerfällt in kleine Gegner), charge (Ansturm),
+// heal (heilt andere Gegner), shield (blockt Treffer von vorn).
 const ENEMIES = {
   slime: { name: 'Schleim', hp: 9, speed: 2.8, dmg: 6, xp: 1, r: 0.6, h: 1.0, mass: 1 },
   skeleton: { name: 'Knochenkerl', hp: 18, speed: 3.3, dmg: 8, xp: 2, r: 0.55, h: 1.8, mass: 1 },
+  wisp: { name: 'Irrlicht', hint: 'Kommen im Schwarm und fliegen Schlangenlinien.', hp: 5, speed: 6.0, dmg: 5, xp: 1, r: 0.4, h: 0.6, fly: 1.1, mass: 0.4, swarm: [5, 7], noElite: true },
   bat: { name: 'Fledermaus', hp: 8, speed: 4.9, dmg: 5, xp: 1, r: 0.5, h: 0.7, fly: 1.4, mass: 0.6 },
+  bomber: {
+    name: 'Knallpilz', hint: 'Blinkt er, lauf weg – er explodiert! Abgeschossen sprengt er seine Freunde.', hp: 14, speed: 3.9, dmg: 6, xp: 2, r: 0.55, h: 1.3, mass: 0.9, noElite: true,
+    fuse: { range: 2.3, time: 0.85, r: 3.0, dmg: 22 },
+  },
   spitter: {
     name: 'Spucker', hp: 24, speed: 2.5, dmg: 7, xp: 3, r: 0.65, h: 1.5, mass: 1.2,
-    ranged: { range: 13, keep: 8, cd: 3.4, speed: 10, dmg: 9 },
+    ranged: { range: 13, keep: 8, cd: 3.4, speed: 10, dmg: 9, color: 0xff6ab0 },
+  },
+  bigSlime: { name: 'Riesenschleim', hint: 'Zerfällt in drei kleine Schleime.', hp: 50, speed: 2.2, dmg: 12, xp: 4, r: 1.05, h: 1.8, mass: 2.4, split: { into: 'slime', n: 3 } },
+  boar: {
+    name: 'Keiler', hint: 'Scharrt er mit „!“, weich zur Seite aus!', hp: 42, speed: 3.0, dmg: 13, xp: 4, r: 0.8, h: 1.3, mass: 2.2,
+    charge: { min: 4.5, max: 15, windup: 0.75, speed: 16, time: 0.85, cd: 4.5 },
   },
   golem: { name: 'Steinklotz', hp: 95, speed: 2.2, dmg: 16, xp: 8, r: 1.15, h: 2.4, mass: 4 },
+  frost: {
+    name: 'Frostwicht', hint: 'Seine Eiskugeln verlangsamen dich.', hp: 30, speed: 2.6, dmg: 7, xp: 4, r: 0.6, h: 1.6, mass: 1.1,
+    ranged: { range: 15, keep: 9, cd: 3.4, speed: 12, dmg: 6, color: 0x8fe3ff, slow: 0.35, slowT: 2 },
+  },
+  shaman: {
+    name: 'Goblin-Schamane', hint: 'Heilt alle Gegner um sich herum – zuerst ausschalten!', hp: 55, speed: 2.7, dmg: 9, xp: 6, r: 0.6, h: 1.6, mass: 1.2, keep: 10, noHorde: true,
+    heal: { r: 8, cd: 3.2, pct: 0.25 },
+  },
   ghost: { name: 'Geist', hp: 34, speed: 4.1, dmg: 10, xp: 4, r: 0.6, h: 1.6, fly: 0.35, phase: true, mass: 0.8 },
+  shieldBearer: { name: 'Schildträger', hint: 'Blockt Treffer von vorn. Flächenschaden von oben trifft voll.', hp: 100, speed: 2.5, dmg: 18, xp: 9, r: 0.85, h: 2.2, mass: 3.5, shield: 0.65 },
   darkKnight: { name: 'Schattenritter', hp: 150, speed: 3.2, dmg: 22, xp: 12, r: 0.8, h: 2.2, mass: 3 },
 };
 
@@ -228,12 +311,17 @@ const ENEMIES = {
 const SPAWN_TABLE = [
   { t: 0, w: { slime: 10 } },
   { t: 40, w: { slime: 8, skeleton: 4 } },
-  { t: 100, w: { slime: 6, skeleton: 5, bat: 4 } },
-  { t: 200, w: { slime: 4, skeleton: 5, bat: 4, spitter: 2 } },
-  { t: 320, w: { slime: 3, skeleton: 5, bat: 4, spitter: 2, golem: 1.4 } },
-  { t: 470, w: { slime: 2, skeleton: 5, bat: 4, spitter: 2, golem: 2, ghost: 3 } },
-  { t: 640, w: { skeleton: 4, bat: 3, spitter: 2, golem: 2.4, ghost: 3, darkKnight: 2 } },
-  { t: 820, w: { skeleton: 3, bat: 3, spitter: 2, golem: 3, ghost: 3, darkKnight: 3 } },
+  { t: 80, w: { slime: 7, skeleton: 5, wisp: 0.7 } },
+  { t: 110, w: { slime: 6, skeleton: 5, bat: 4, wisp: 0.7 } },
+  { t: 160, w: { slime: 5, skeleton: 5, bat: 4, wisp: 0.6, bomber: 1.6 } },
+  { t: 210, w: { slime: 4, skeleton: 5, bat: 3.5, wisp: 0.6, bomber: 1.6, spitter: 1.8, bigSlime: 1 } },
+  { t: 270, w: { slime: 3, skeleton: 5, bat: 3.5, wisp: 0.6, bomber: 1.6, spitter: 1.8, bigSlime: 1, boar: 1.2 } },
+  { t: 340, w: { slime: 1.5, skeleton: 5, bat: 3, wisp: 0.5, bomber: 1.8, spitter: 1.6, bigSlime: 1, boar: 1.3, golem: 1.2, frost: 1.1 } },
+  { t: 420, w: { slime: 1, skeleton: 5, bat: 3, wisp: 0.5, bomber: 1.8, spitter: 1.5, bigSlime: 1, boar: 1.4, golem: 1.4, frost: 1.2, shaman: 0.6 } },
+  { t: 490, w: { slime: 1, skeleton: 5, bat: 3, wisp: 0.5, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.4, golem: 1.6, frost: 1.2, shaman: 0.6, ghost: 3 } },
+  { t: 570, w: { skeleton: 4.5, bat: 2.5, wisp: 0.5, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.6, golem: 1.8, frost: 1.3, shaman: 0.7, ghost: 3, shieldBearer: 1.1 } },
+  { t: 660, w: { skeleton: 3.5, bat: 2.5, wisp: 0.4, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.8, golem: 2, frost: 1.4, shaman: 0.8, ghost: 3, shieldBearer: 1.4, darkKnight: 2 } },
+  { t: 820, w: { skeleton: 3, bat: 2.5, wisp: 0.4, bomber: 2.2, spitter: 1.5, bigSlime: 1.2, boar: 2, golem: 2.4, frost: 1.5, shaman: 0.9, ghost: 3, shieldBearer: 1.8, darkKnight: 3 } },
 ];
 
 const BOSSES = {

@@ -132,7 +132,7 @@ function newRunState(charDef) {
     stats: null, mods: { maxHp: 0, regen: 0, armor: 0, evasion: 0, speed: 0, damage: 0, attackSpeed: 0, area: 0, amount: 0, crit: 0, luck: 0, xpGain: 0, pickup: 0, gold: 0, jumps: 0 },
     player: null, weapons: [], tomes: {}, enemies: [], bosses: [], chests: [], shrines: [],
     level: 1, xp: 0, xpNeed: xpForLevel(1), pendingLevels: 0, rerolls: CONFIG.REROLLS,
-    gold: 0, goldEarned: 0, kills: 0, totalDamage: 0, damageTaken: 0, chestsOpened: 0, bossesKilled: 0,
+    gold: 0, goldEarned: 0, kills: 0, totalDamage: 0, damageTaken: 0, hurtBy: {}, seen: {}, chestsOpened: 0, bossesKilled: 0,
     spawnAcc: 0, nextHorde: 75, miniIdx: 0, finalSpawned: false, relocateT: 0, alive: 0,
     camYaw: 0, camYawT: 0, camPitch: 0.5, camPitchT: 0.5, camT: new THREE.Vector3(), camTouched: 0, shake: 0, camKick: 0, camFov: 60,
     look: new THREE.Vector2(),
@@ -355,7 +355,18 @@ function updateSpawner(dt) {
     G.spawnAcc -= 1;
     if (alive >= CONFIG.MAX_ENEMIES) { G.spawnAcc = Math.min(G.spawnAcc, 3); break; }
     const [x, z] = spawnPos(26, 36);
-    Enemies.spawn(pickSpawnType(), x, z, { elite: Math.random() < eliteChance });
+    const type = pickSpawnType(), def = ENEMIES[type];
+    if (!G.seen[type]) {
+      G.seen[type] = true;
+      if (def.hint) UI.banner(`Neu: ${def.name}`, def.hint, 2.8);
+    }
+    if (def.swarm) {
+      // Schwärme kommen gemeinsam aus einer Richtung
+      const n = Math.round(rand(def.swarm[0], def.swarm[1] + 0.49));
+      for (let k = 0; k < n && alive < CONFIG.MAX_ENEMIES; k++, alive++) Enemies.spawn(type, x + rand(-1.6, 1.6), z + rand(-1.6, 1.6));
+      continue;
+    }
+    Enemies.spawn(type, x, z, { elite: !def.noElite && Math.random() < eliteChance });
     alive++;
   }
   // Gegner, die zu weit weg sind, wieder in die Nähe holen
@@ -373,7 +384,10 @@ function updateSpawner(dt) {
   // Horden
   if (t >= G.nextHorde && t < CONFIG.ROUND_SECONDS) {
     G.nextHorde += CONFIG.HORDE_EVERY;
-    const type = pickSpawnType(), n = Math.min(14 + Math.floor(m * 2.5), 50);
+    let type = pickSpawnType();
+    for (let i = 0; i < 6 && ENEMIES[type].noHorde; i++) type = pickSpawnType();
+    if (ENEMIES[type].noHorde) type = 'skeleton';
+    const n = Math.min(14 + Math.floor(m * 2.5), 50);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * TAU;
       const x = clamp(p.x + Math.sin(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF), z = clamp(p.z + Math.cos(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF);
@@ -1002,6 +1016,12 @@ function botMove() {
     if (!e.alive) continue;
     const dx = p.x - e.x, dz = p.z - e.z, d2 = dx * dx + dz * dz;
     if (d2 < App.botRange) { const w = 2 / Math.max(d2, 0.3); vx += dx * w; vz += dz * w; }
+    // wie ein Mensch: vor brennenden Knallpilzen weglaufen, Keilern seitlich ausweichen
+    if (e.fuseT > 0 && d2 < 16) { const w = 10 / Math.max(d2, 0.3); vx += dx * w; vz += dz * w; }
+    if (e.mode >= 1 && d2 < 250) {
+      const fx = Math.sin(e.rot), fz = Math.cos(e.rot), side = Math.sign(dx * fz - dz * fx) || 1;
+      vx += fz * side * 1.6; vz -= fx * side * 1.6;
+    }
   }
   // Ziel: Boss auf Abstand halten, sonst Truhen und Schreine ansteuern
   let tx = null, tz = null, keep = 0;
