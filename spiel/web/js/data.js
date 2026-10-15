@@ -7,7 +7,7 @@ const CONFIG = {
   MAP_HALF: 104,          // begehbarer Bereich: -MAP_HALF … +MAP_HALF
   WATER_LEVEL: -3.3,      // Teiche in den Senken
   WORLD_HALF: 140,        // Gelände inkl. Randgebirge
-  MAX_ENEMIES: 280,
+  MAX_ENEMIES: 340,
   MAX_WEAPONS: 4,
   WEAPON_MAX_LEVEL: 12,
   REROLLS: 3,
@@ -24,10 +24,10 @@ const CONFIG = {
 };
 
 // Gegner werden mit der Zeit stärker (m = Minuten seit Rundenbeginn).
-function enemyHpScale(m) { return 1 + 0.2 * m + 0.075 * m * m; }
-function enemyDmgScale(m) { return 1 + 0.1 * m; }
-function spawnRate(m) { return 1.1 + 0.5 * m + 0.032 * m * m; } // Gegner pro Sekunde
-function xpForLevel(l) { return Math.floor(5 + 4 * l + 0.4 * l * l); }
+function enemyHpScale(m) { return 1.15 + 0.26 * m + 0.09 * m * m; }
+function enemyDmgScale(m) { return 1.1 + 0.13 * m; }
+function spawnRate(m) { return 1.5 + 0.65 * m + 0.04 * m * m; } // Gegner pro Sekunde
+function xpForLevel(l) { return Math.floor(6 + 5 * l + 0.48 * l * l); }
 
 const RARITIES = [
   { id: 'common', name: 'Gewöhnlich', color: '#d7d2e6', mult: 1.0, weight: 62 },
@@ -306,36 +306,81 @@ const ENEMIES = {
   ghost: { name: 'Geist', hp: 34, speed: 4.1, dmg: 10, xp: 4, r: 0.6, h: 1.6, fly: 0.35, phase: true, mass: 0.8 },
   shieldBearer: { name: 'Schildträger', hint: 'Blockt Treffer von vorn. Flächenschaden von oben trifft voll.', hp: 100, speed: 2.5, dmg: 18, xp: 9, r: 0.85, h: 2.2, mass: 3.5, shield: 0.65 },
   darkKnight: { name: 'Schattenritter', hp: 150, speed: 3.2, dmg: 22, xp: 12, r: 0.8, h: 2.2, mass: 3 },
+  spider: {
+    name: 'Riesenspinne', hint: 'Springt dich aus der Entfernung an – im letzten Moment ausweichen!',
+    hp: 16, speed: 4.3, dmg: 9, xp: 2, r: 0.6, h: 0.9, mass: 0.9,
+    pounce: { min: 3.5, max: 9, cd: 3.2, time: 0.55, height: 2.0 },
+  },
+  kobold: {
+    name: 'Kobold', hint: 'Teleportiert sich plötzlich direkt neben dich.',
+    hp: 22, speed: 3.6, dmg: 10, xp: 3, r: 0.5, h: 1.3, mass: 0.8, blink: { cd: 4.5, min: 8 },
+  },
+  hedgehog: {
+    name: 'Stacheligel', hint: 'Schießt Stacheln in alle Richtungen – drüberspringen!',
+    hp: 40, speed: 2.4, dmg: 10, xp: 4, r: 0.75, h: 1.1, mass: 1.6, spikes: { cd: 3.8, n: 10, speed: 9, dmg: 8, range: 11 },
+  },
+  lavaSlime: {
+    name: 'Lavaschleim', hint: 'Hinterlässt brennende Pfützen – nicht hineinlaufen!',
+    hp: 45, speed: 2.6, dmg: 12, xp: 4, r: 0.8, h: 1.3, mass: 1.8, trail: { every: 0.5, r: 1.2, life: 3.2, dmg: 7 },
+  },
+  troll: {
+    name: 'Felsentroll', hint: 'Wirft Felsbrocken – raus aus dem roten Kreis!',
+    hp: 160, speed: 2.0, dmg: 20, xp: 12, r: 1.1, h: 2.9, mass: 4.5, lob: { range: 18, min: 5, cd: 4.5, dmg: 16 },
+  },
+  mimic: {
+    name: 'Mimik', hint: 'Diese Truhe beißt! Besiegt lässt sie viel Gold fallen.',
+    hp: 90, speed: 5.0, dmg: 14, xp: 10, r: 0.8, h: 1.3, mass: 2.5, gold: 25, noElite: true, noHorde: true, mimic: { wake: 7 },
+  },
 };
 
-// Welche Gegner ab wann erscheinen (Sekunden) und wie häufig.
-const SPAWN_TABLE = [
-  { t: 0, w: { slime: 10 } },
-  { t: 40, w: { slime: 8, skeleton: 4 } },
-  { t: 80, w: { slime: 7, skeleton: 5, wisp: 0.7 } },
-  { t: 110, w: { slime: 6, skeleton: 5, bat: 4, wisp: 0.7 } },
-  { t: 160, w: { slime: 5, skeleton: 5, bat: 4, wisp: 0.6, bomber: 1.6 } },
-  { t: 210, w: { slime: 4, skeleton: 5, bat: 3.5, wisp: 0.6, bomber: 1.6, spitter: 1.8, bigSlime: 1 } },
-  { t: 270, w: { slime: 3, skeleton: 5, bat: 3.5, wisp: 0.6, bomber: 1.6, spitter: 1.8, bigSlime: 1, boar: 1.2 } },
-  { t: 340, w: { slime: 1.5, skeleton: 5, bat: 3, wisp: 0.5, bomber: 1.8, spitter: 1.6, bigSlime: 1, boar: 1.3, golem: 1.2, frost: 1.1 } },
-  { t: 420, w: { slime: 1, skeleton: 5, bat: 3, wisp: 0.5, bomber: 1.8, spitter: 1.5, bigSlime: 1, boar: 1.4, golem: 1.4, frost: 1.2, shaman: 0.6 } },
-  { t: 490, w: { slime: 1, skeleton: 5, bat: 3, wisp: 0.5, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.4, golem: 1.6, frost: 1.2, shaman: 0.6, ghost: 3 } },
-  { t: 570, w: { skeleton: 4.5, bat: 2.5, wisp: 0.5, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.6, golem: 1.8, frost: 1.3, shaman: 0.7, ghost: 3, shieldBearer: 1.1 } },
-  { t: 660, w: { skeleton: 3.5, bat: 2.5, wisp: 0.4, bomber: 2, spitter: 1.5, bigSlime: 1, boar: 1.8, golem: 2, frost: 1.4, shaman: 0.8, ghost: 3, shieldBearer: 1.4, darkKnight: 2 } },
-  { t: 820, w: { skeleton: 3, bat: 2.5, wisp: 0.4, bomber: 2.2, spitter: 1.5, bigSlime: 1.2, boar: 2, golem: 2.4, frost: 1.5, shaman: 0.9, ghost: 3, shieldBearer: 1.8, darkKnight: 3 } },
-];
+// Gegner-Mischung: [ab Sekunde, Gewicht beim Auftauchen, Gewicht am Ende, Ende (Standard 13:40)].
+// Dazwischen wird das Gewicht gleichmäßig angepasst, damit sich die Horde nach und nach verändert.
+const SPAWN_MIX = {
+  slime: [0, 10, 0, 420],
+  skeleton: [15, 3, 2.5],
+  wisp: [80, 0.8, 0.4],
+  bat: [110, 4, 2.5],
+  spider: [130, 2.2, 1.8],
+  bomber: [160, 1.8, 2.2],
+  mimic: [160, 0.2, 0.25],
+  spitter: [210, 1.8, 1.5],
+  bigSlime: [210, 1.1, 1.2],
+  kobold: [230, 1.5, 1.6],
+  boar: [270, 1.3, 2],
+  hedgehog: [300, 1.2, 1.5],
+  golem: [340, 1.2, 2.4],
+  frost: [340, 1.1, 1.5],
+  lavaSlime: [380, 1.1, 1.5],
+  shaman: [420, 0.6, 0.9],
+  ghost: [490, 2.5, 3],
+  troll: [520, 0.9, 1.4],
+  shieldBearer: [570, 1.1, 1.8],
+  darkKnight: [660, 2, 3],
+};
+function spawnWeights(t) {
+  const out = {};
+  for (const id in SPAWN_MIX) {
+    const [from, w0, w1, to = 820] = SPAWN_MIX[id];
+    if (t < from) continue;
+    const k = Math.min(1, (t - from) / Math.max(1, to - from));
+    const w = w0 + (w1 - w0) * k;
+    if (w > 0.01) out[id] = w;
+  }
+  return out;
+}
+
 
 const BOSSES = {
   slimeKing: {
-    name: 'Schleimkönig', hp: 3200, speed: 3.0, dmg: 18, r: 2.3, h: 3.6, xp: 160, gold: 60,
+    name: 'Schleimkönig', hp: 3200, speed: 3.0, dmg: 18, r: 2.3, h: 3.6, xp: 160, gold: 100,
     attacks: ['slam', 'summon', 'slam'], model: 'slimeKing',
   },
   golemLord: {
-    name: 'Golemfürst', hp: 20000, speed: 2.8, dmg: 34, r: 2.5, h: 5.2, xp: 400, gold: 120,
+    name: 'Golemfürst', hp: 20000, speed: 2.8, dmg: 34, r: 2.5, h: 5.2, xp: 400, gold: 200,
     attacks: ['slam', 'charge', 'rocks', 'charge'], model: 'golemLord',
   },
   witch: {
-    name: 'Hexe Morla', hp: 60000, speed: 4.4, dmg: 36, r: 1.5, h: 4.6, xp: 600, gold: 160,
+    name: 'Hexe Morla', hp: 60000, speed: 4.4, dmg: 36, r: 1.5, h: 4.6, xp: 600, gold: 260,
     attacks: ['spiral', 'homing', 'blink', 'puddles', 'summon', 'spiral', 'blink', 'homing'], model: 'witch',
     hover: true, keep: 10, summon: ['skeleton', 'wisp', 'ghost'],
   },

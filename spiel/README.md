@@ -69,20 +69,30 @@ Die neuen Waffen im Überblick:
 
 ## Gegner
 
+20 Gegnertypen. Die Mischung ändert sich im Lauf der Runde gleitend: Neue Arten
+kommen dazu, Schleime verschwinden nach und nach. Taucht ein Gegner mit
+besonderer Fähigkeit zum ersten Mal auf, erscheint ein kurzer Hinweis.
+
 | Gegner | ab | Besonderheit |
 |---|---|---|
 | Schleim | 0:00 | langsam, kommt in Massen |
-| Knochenkerl | 0:40 | der Standard-Gegner |
+| Knochenkerl | 0:15 | der Standard-Gegner |
 | Irrlicht | 1:20 | fliegt in Schwärmen von 5–7 in Schlangenlinien |
 | Fledermaus | 1:50 | schnell, fliegt |
+| Riesenspinne | 2:10 | springt dich aus einigen Metern Entfernung an |
 | Knallpilz | 2:40 | zündet neben dir seine Lunte – weg da! Abgeschossen explodiert er zwischen seinen Freunden |
+| Mimik | 2:40 | selten; sieht aus wie eine Truhe und beißt, wenn du ihr zu nahe kommst – lässt viel Gold fallen |
 | Spucker | 3:30 | hält Abstand und spuckt Kugeln |
 | Riesenschleim | 3:30 | zerfällt in drei kleine Schleime |
+| Kobold | 3:50 | teleportiert sich plötzlich direkt neben dich |
 | Keiler | 4:30 | scharrt (rotes Blinken, „!“) und stürmt dann geradeaus los – zur Seite ausweichen |
+| Stacheligel | 5:00 | schießt Stacheln in alle Richtungen – drüberspringen |
 | Steinklotz | 5:40 | sehr zäh |
 | Frostwicht | 5:40 | Eiskugeln verlangsamen dich |
+| Lavaschleim | 6:20 | hinterlässt brennende Pfützen |
 | Goblin-Schamane | 7:00 | heilt alle Gegner um sich herum – zuerst erledigen |
 | Geist | 8:10 | fliegt durch Hindernisse |
+| Felsentroll | 8:40 | wirft Felsbrocken mit Warnkreis |
 | Schildträger | 9:30 | blockt Treffer von vorn; Flächenschaden von oben (Meteor, Pfeilregen, Ranken …) trifft voll |
 | Schattenritter | 11:00 | stark und schnell |
 
@@ -93,8 +103,10 @@ Die neuen Waffen im Überblick:
   (gilt für alles). Karten haben Seltenheiten von *Gewöhnlich* bis *Legendär*;
   Glück erhöht die Chance auf seltene Karten. Drei Mal pro Runde darfst du neu
   würfeln.
-- **Gold** öffnet Truhen (jede weitere wird teurer, geöffnete Truhen tauchen an
-  anderer Stelle neu auf). Lila Truhen von Elite-Gegnern und Bossen sind gratis.
+- **Gold** lassen besiegte Gegner fallen, zähe Gegner doppelt so viel, Bosse und
+  Mimiks besonders viel. Gold öffnet Truhen (jede weitere wird teurer, geöffnete
+  Truhen tauchen an anderer Stelle neu auf). Lila Truhen von Elite-Gegnern und
+  Bossen sind gratis.
 - **Schreine:** drei Sekunden im Kreis stehen bleiben, dann gibt es einen Segen.
 - Alle 90 Sekunden kommt eine **Horde**, nach 5 Minuten der **Schleimkönig**,
   nach 10 Minuten der **Golemfürst** und nach 12:30 **Hexe Morla**. Die Hexe

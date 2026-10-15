@@ -352,6 +352,7 @@ function healPlayer(amount) {
 const ENEMY_COLORS = {
   slime: 0x6fdc5a, skeleton: 0xe9e4d4, bat: 0x7a55a0, spitter: 0xe85d9c, golem: 0x8e9199, ghost: 0xdff3ff, darkKnight: 0x4a4258,
   wisp: 0x8ff7ff, bomber: 0xe8423a, bigSlime: 0x5aa9ff, boar: 0x8a5a38, frost: 0x9fe6ff, shaman: 0x7cc35a, shieldBearer: 0x9aa3b5,
+  spider: 0x3a2a48, kobold: 0x9b6ae0, hedgehog: 0xc9a46a, lavaSlime: 0xff7a1a, troll: 0x7a8a5a, mimic: 0xffcf4a,
 };
 // Punkt im Gegner-Modell (lokal ox/oy/oz) in Weltkoordinaten
 const _wp = { x: 0, y: 0, z: 0 };
@@ -393,10 +394,11 @@ const Enemies = {
       elite, boss: false, alive: true, dying: false, dyingT: 0, dead: false,
       rot: 0, flash: 0, slowT: 0, slow: 0, spin: 0, hitAt: -9, landAt: -9,
       spawnT: opts.instant ? 0 : 0.5,
-      shootT: def.ranged ? rand(1, def.ranged.cd) : 0,
+      shootT: def.ranged ? rand(1, def.ranged.cd) : def.spikes ? rand(1, def.spikes.cd) : def.lob ? rand(1.5, def.lob.cd) : 0,
       phase: Math.random() * TAU,
       fuseT: 0, warn: null, mode: 0, modeT: 0, cdx: 0, cdz: 1,
-      chargeCd: def.charge ? rand(1, def.charge.cd) : 0,
+      chargeCd: def.charge ? rand(1, def.charge.cd) : def.pounce ? rand(1, def.pounce.cd) : def.blink ? rand(2, def.blink.cd) : 0,
+      hop: 0, sx: 0, sz: 0, tx: 0, tz: 0, trailT: 0, awake: !def.mimic,
       healT: def.heal ? rand(1.5, def.heal.cd) : 0,
       rootT: 0, confT: 0, confA: 0,
     });
@@ -435,6 +437,7 @@ const Enemies = {
       if (e.slowT > 0) e.slowT -= dt;
       // Durch die Luft geschleudert (Rumms!): keine Steuerung bis zur Landung
       if (e.ay > 0 || e.avy > 0) {
+        if (e.mode === 3) { e.mode = 0; e.hop = 0; }
         e.avy -= 32 * dt; e.ay += e.avy * dt;
         e.x += e.kvx * dt; e.z += e.kvz * dt;
         e.spin += dt * 9;
@@ -464,6 +467,20 @@ const Enemies = {
           Sound.fuse();
         }
       }
+      // Lavaschleim: hinterlässt brennende Pfützen
+      const tr = def.trail;
+      if (tr && e.spawnT <= 0) {
+        e.trailT -= dt;
+        if (e.trailT <= 0) { e.trailT = tr.every; addFire(e.x, e.z, tr.r * e.scale, tr.life, tr.dmg * enemyDmgScale(t / 60)); }
+      }
+      // Mimik: schläft als Truhe, bis man ihr zu nahe kommt oder sie trifft
+      if (def.mimic && !e.awake) {
+        if (d < def.mimic.wake || e.hp < e.maxHp) {
+          e.awake = true; e.hitAt = t;
+          addText(e.x, e.y + e.h + 0.6, e.z, 'Mimik!', '#ffcf33');
+          Sound.chest();
+        } else { e.vx = e.vz = 0; continue; }
+      }
       if (e.rootT > 0) { e.rootT -= dt; sp = 0; }
       if (e.confT > 0) {
         // verwirrt (Rauchbombe): irrt umher, greift nicht an
@@ -471,7 +488,7 @@ const Enemies = {
         if (Math.random() < dt * 1.5) e.confA = Math.random() * TAU;
         mx = Math.sin(e.confA); mz = Math.cos(e.confA); face = e.confA;
         sp = e.rootT > 0 ? 0 : e.speed * 0.5 * slowK;
-        e.mode = 0;
+        e.mode = 0; e.hop = 0;
       } else {
         const rg = def.ranged, keep = rg ? rg.keep : def.keep;
         if (keep) {
@@ -509,6 +526,69 @@ const Enemies = {
             addText(e.x, e.y + e.h + 0.7, e.z, '!', '#ff6a3a');
           }
         }
+        // Spinne: Sprungangriff auf die Stelle, wo du gleich sein wirst
+        const pc = def.pounce;
+        if (pc && e.mode === 0) {
+          e.chargeCd -= dt;
+          if (e.chargeCd <= 0 && d > pc.min && d < pc.max && e.spawnT <= 0 && e.rootT <= 0) {
+            e.mode = 3; e.modeT = 0; e.sx = e.x; e.sz = e.z;
+            e.tx = clamp(p.x + p.vx * 0.3, -H, H); e.tz = clamp(p.z + p.vz * 0.3, -H, H);
+          }
+        }
+        // Kobold: taucht plötzlich neben dir auf
+        const bl = def.blink;
+        if (bl && e.spawnT <= 0) {
+          e.chargeCd -= dt;
+          if (e.chargeCd <= 0 && d > bl.min && e.rootT <= 0) {
+            e.chargeCd = bl.cd * rand(0.8, 1.3);
+            smokeBurst(e.x, e.y + 0.6, e.z, 5, 0x8a5ad0, 0.9, 2);
+            const a = Math.random() * TAU, r = rand(3, 4.5);
+            e.x = clamp(p.x + Math.sin(a) * r, -H, H); e.z = clamp(p.z + Math.cos(a) * r, -H, H);
+            e.px = e.x; e.pz = e.z; e.vx = e.vz = 0; e.spawnT = 0.35;
+            smokeBurst(e.x, groundHeight(e.x, e.z) + 0.6, e.z, 5, 0x8a5ad0, 0.9, 2);
+            ringFx(e.x, e.z, 1.2, 0xb08aff, 0.3, 0.2);
+            continue;
+          }
+        }
+        // Igel: Stachelring
+        const sk = def.spikes;
+        if (sk) {
+          e.shootT -= dt;
+          if (e.shootT <= 0 && d < sk.range && e.spawnT <= 0) {
+            e.shootT = sk.cd * rand(0.85, 1.15);
+            const off = Math.random() * TAU, dm = sk.dmg * enemyDmgScale(t / 60);
+            for (let k = 0; k < sk.n; k++) {
+              const a = off + (k / sk.n) * TAU;
+              const o = fireEnemyOrb(e.x + Math.sin(a) * e.r, e.y + 0.5, e.z + Math.cos(a) * e.r, Math.sin(a), Math.cos(a), sk.speed, dm, 0xe8d29a);
+              if (o) { o.low = true; o.r = 0.28; o.life = sk.range / sk.speed; o.src = 'hedgehog'; }
+            }
+            e.hitAt = t - 0.05;
+          }
+        }
+        // Troll: wirft Felsbrocken mit Warnkreis
+        const lb = def.lob;
+        if (lb) {
+          e.shootT -= dt;
+          if (e.shootT <= 0 && d < lb.range && d > lb.min && e.spawnT <= 0) {
+            e.shootT = lb.cd * rand(0.85, 1.2);
+            addRock(e.x, e.z, p.x + p.vx * 0.5, p.z + p.vz * 0.5, lb.dmg * enemyDmgScale(t / 60), 1.8, 'troll');
+            e.hitAt = t - 0.05;
+          }
+        }
+      }
+      if (e.mode === 3) {
+        const pc = def.pounce;
+        e.modeT += dt;
+        const k = Math.min(1, e.modeT / pc.time);
+        e.x = lerp(e.sx, e.tx, k); e.z = lerp(e.sz, e.tz, k);
+        e.hop = Math.sin(k * Math.PI) * pc.height;
+        e.rot += angleDiff(e.rot, Math.atan2(e.tx - e.sx, e.tz - e.sz)) * Math.min(1, dt * 14);
+        if (k >= 1) {
+          e.mode = 0; e.hop = 0; e.chargeCd = pc.cd * rand(0.8, 1.2); e.landAt = t; e.vx = e.vz = 0;
+          smokeBurst(e.x, groundHeight(e.x, e.z) + 0.1, e.z, 3, 0xd8c9a8, 0.7, 1.5);
+        }
+        e.kvx *= Math.exp(-6 * dt); e.kvz *= Math.exp(-6 * dt);
+        continue;
       }
       if (e.mode === 2) {
         e.modeT -= dt;
@@ -529,7 +609,7 @@ const Enemies = {
     // Gegner schieben sich gegenseitig weg (weich, damit nichts zittert)
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
-      if (!a.alive || a.def.fly || a.ay > 0) continue;
+      if (!a.alive || a.def.fly || a.ay > 0 || a.mode === 3) continue;
       const gx = Grid.idx(a.x), gz = Grid.idx(a.z);
       for (let oz = -1; oz <= 1; oz++) {
         for (let ox = -1; ox <= 1; ox++) {
@@ -562,8 +642,8 @@ const Enemies = {
       if (!e.def.phase) pushOutOfObstacles(e, e.r * 0.8, e.ay);
       e.x = clamp(e.x, -H, H); e.z = clamp(e.z, -H, H);
       const gh = groundHeight(e.x, e.z);
-      e.y = gh + e.ay + (e.def.fly ? e.def.fly + Math.sin(t * 3 + e.phase) * 0.3 : 0);
-      if (e.ay > 0 || e.spawnT > 0 || e.confT > 0) continue;
+      e.y = gh + e.ay + e.hop + (e.def.fly ? e.def.fly + Math.sin(t * 3 + e.phase) * 0.3 : 0);
+      if (e.ay > 0 || e.spawnT > 0 || e.confT > 0 || !e.awake) continue;
       const dx = e.x - p.x, dz = e.z - p.z, rr = e.r + pr;
       const d2 = dx * dx + dz * dz;
       if (d2 < (rr + 0.12) * (rr + 0.12)) {
@@ -602,8 +682,14 @@ const Enemies = {
       const moveK = clamp(Math.hypot(e.vx, e.vz) / Math.max(e.speed, 0.1), 0, 1);
       const ty = e.type, rot = ilerp(e.prot, e.rot, a);
       let r = 1, g = 1, b = 1;
-      if (ty === 'slime' || ty === 'bigSlime') {
-        const big = ty === 'bigSlime', bb = Math.sin(t * (big ? 6 : 9) + e.phase);
+      if (ty === 'mimic') {
+        if (e.awake) {
+          const hp = Math.abs(Math.sin(t * 9 + e.phase));
+          y += hp * 0.4; sy *= 0.9 + hp * 0.2; tilt = -0.12 + hp * 0.1;
+        } else { sy *= 0.97; }
+      } else if (ty === 'slime' || ty === 'bigSlime' || ty === 'lavaSlime') {
+        const big = ty !== 'slime', bb = Math.sin(t * (big ? 6 : 9) + e.phase);
+        if (ty === 'lavaSlime' && !e.dying) FX.glow.add(x, y + 1.1 * e.scale, z, 2.6 * e.scale, 1, 0.5, 0.15, 0.45);
         sy *= 1 + bb * 0.14; sx *= 1 - bb * 0.07; sz *= 1 - bb * 0.07;
         y += Math.max(0, bb) * (big ? 0.2 : 0.12) * moveK;
       } else if (ty === 'bat') {
@@ -625,6 +711,10 @@ const Enemies = {
           roll = Math.sin(t * 34) * 0.07; tilt = -0.12;
           const pu = 0.5 + 0.5 * Math.sin(t * 22);
           r = 1.3 + pu * 0.6; g = b = 0.75;
+        }
+        if (ty === 'spider') {
+          roll = Math.sin(t * 22 + e.phase) * 0.06 * moveK;
+          if (e.mode === 3) tilt = e.modeT / e.def.pounce.time < 0.5 ? -0.45 : 0.35;
         }
         if (ty === 'bomber' && !e.dying) {
           const wp = enemyPoint(x, y, z, rot, e.scale, 0, 1.52, 0.05);
@@ -725,7 +815,9 @@ function killEnemy(e, w, dx, dz) {
   sparkBurst(e.x, cy, e.z, e.elite ? 10 : 3, 0xfff2b0, 5, 0.3);
   dropXp(e.x, e.z, e.xp);
   const m = G.time / 60;
-  if (Math.random() < 0.09 || e.elite) dropCoins(e.x, e.z, e.elite ? 20 : 1 + Math.floor(m / 3));
+  // Gold: öfter und mehr; zähe Gegner (viel Erfahrung) lassen doppelt so viel fallen
+  if (e.def.gold) dropCoins(e.x, e.z, e.def.gold * (1 + m * 0.12));
+  else if (Math.random() < 0.15 || e.elite) dropCoins(e.x, e.z, e.elite ? 30 + m * 2 : (1 + Math.floor(m / 2)) * (e.def.xp >= 4 ? 2 : 1));
   if (Math.random() < 0.012) dropItem(e.x, e.z, 'food');
   else if (Math.random() < 0.0035) dropItem(e.x, e.z, 'magnet');
   if (e.elite) spawnChest(e.x, e.z, true);
@@ -760,9 +852,18 @@ function shamanHeal(e, hl) {
 }
 
 // ---------- Gegner-Geschosse und Gefahren ----------
-const EnemyShots = { list: [], inst: null, waves: [], rocks: [], blasts: [], pools: [] };
+const EnemyShots = { list: [], inst: null, waves: [], rocks: [], blasts: [], pools: [], fires: [] };
 function fireEnemyOrb(x, y, z, dx, dz, speed, dmg, color, slow, slowT) {
-  EnemyShots.list.push({ x, y, z, px: x, py: y, pz: z, vx: dx * speed, vz: dz * speed, life: 5, dmg, r: 0.35, color: new THREE.Color(color || 0xff6ab0), slow: slow || 0, slowT: slowT || 0 });
+  if (EnemyShots.list.length >= 380) return null; // mehr kann nicht gezeichnet werden: lieber gar nicht schießen
+  const s = { x, y, z, px: x, py: y, pz: z, vx: dx * speed, vz: dz * speed, life: 5, dmg, r: 0.35, color: new THREE.Color(color || 0xff6ab0), slow: slow || 0, slowT: slowT || 0 };
+  EnemyShots.list.push(s);
+  return s;
+}
+// Brennende Pfützen des Lavaschleims
+function addFire(x, z, r, life, dmg) {
+  const f = EnemyShots.fires;
+  if (f.length >= 150) f.shift();
+  f.push({ x, z, r, life, dmg, t: 0, tick: 0 });
 }
 function updateEnemyShots(dt) {
   const p = G.player, list = EnemyShots.list;
@@ -784,13 +885,22 @@ function updateEnemyShots(dt) {
     let hit = false;
     const dx = s.x - p.x, dz = s.z - p.z;
     if (dx * dx + dz * dz < (s.r + 0.45) ** 2 && p.y < s.y + s.r && p.y + 1.7 > s.y - s.r) {
-      hurtPlayer(s.dmg, s.slow ? 'frost' : 'spitter'); hit = true;
+      hurtPlayer(s.dmg, s.src || (s.slow ? 'frost' : 'spitter')); hit = true;
       if (s.slow && p.dashT <= 0) { p.slowT = Math.max(p.slowT, s.slowT); p.slowAmt = s.slow; }
     }
     if (hit || s.life <= 0 || s.y < gh - 0.2) {
       sparkBurst(s.x, s.y, s.z, 5, s.color.getHex(), 3, 0.3);
       list.splice(i, 1);
     }
+  }
+  // Feuerspur
+  const feet = p.y - groundHeight(p.x, p.z);
+  for (let i = EnemyShots.fires.length - 1; i >= 0; i--) {
+    const f = EnemyShots.fires[i];
+    f.t += dt; f.tick -= dt;
+    if (f.t >= f.life) { EnemyShots.fires.splice(i, 1); continue; }
+    if (f.tick <= 0 && feet < 0.5 && (p.x - f.x) ** 2 + (p.z - f.z) ** 2 < f.r * f.r) { f.tick = 0.5; hurtPlayer(f.dmg, 'lavaSlime'); }
+    if (Math.random() < 0.12) spawnSpark(f.x + rand(-0.6, 0.6) * f.r, groundHeight(f.x, f.z) + 0.1, f.z + rand(-0.6, 0.6) * f.r, 0, rand(1, 2.2), 0, 0.45, 0.3, 0xffa040, 0);
   }
   // Giftpfützen der Hexe: erst Warnkreis, dann brodelt es
   for (let i = EnemyShots.pools.length - 1; i >= 0; i--) {
@@ -837,7 +947,7 @@ function updateEnemyShots(dt) {
     const r = EnemyShots.rocks[i];
     r.t += dt;
     if (r.t >= r.T) {
-      if (Math.hypot(p.x - r.tx, p.z - r.tz) < r.r + 0.4 && p.y - groundHeight(p.x, p.z) < 2) hurtPlayer(r.dmg, 'boss');
+      if (Math.hypot(p.x - r.tx, p.z - r.tz) < r.r + 0.4 && p.y - groundHeight(p.x, p.z) < 2) hurtPlayer(r.dmg, r.src);
       ringFx(r.tx, r.tz, r.r, 0x9a8a78, 0.35);
       spawnBurst(r.tx, groundHeight(r.tx, r.tz) + 0.3, r.tz, 10, 0x8a8478, 6, 0.55);
       smokeBurst(r.tx, groundHeight(r.tx, r.tz) + 0.4, r.tz, 6, 0xc9bfae, 2, 3);
@@ -859,9 +969,9 @@ function addPoison(x, z, r, dmg) {
   x = clamp(x, -H, H); z = clamp(z, -H, H);
   EnemyShots.pools.push({ x, z, r, dmg, t: 0, warn: 0.9, life: 5.9, tick: 0, on: false, fx: warnFx(x, z, r, 0.9) });
 }
-function addRock(sx, sz, tx, tz, dmg) {
+function addRock(sx, sz, tx, tz, dmg, r = 2.2, src = 'boss') {
   const T = 1.1;
-  EnemyShots.rocks.push({ sx, sz, tx, tz, t: 0, T, dmg, r: 2.2, warn: warnFx(tx, tz, 2.2, T) });
+  EnemyShots.rocks.push({ sx, sz, tx, tz, t: 0, T, dmg, r, src, warn: warnFx(tx, tz, r, T) });
 }
 function renderEnemyShots(a) {
   const inst = EnemyShots.inst;
@@ -872,6 +982,15 @@ function renderEnemyShots(a) {
     FX.glow.add(x, y, z, s.homing !== undefined ? 3 : 1.6, s.color.r, s.color.g, s.color.b, 0.55);
   }
   inst.end();
+  const fi = Effects.fireInst;
+  fi.begin();
+  for (const f of EnemyShots.fires) {
+    const k = f.t / f.life, fade = Math.min(1, f.t * 5) * (1 - k * k), gy = groundHeight(f.x, f.z);
+    const fl = 0.85 + Math.sin(GFX.time * 9 + f.x) * 0.15, s = f.r * (0.8 + 0.2 * fade);
+    fi.add(f.x, gy + 0.06, f.z, 0, f.x, 0, s, 1, s, 1.0 * fade * fl, 0.38 * fade * fl, 0.08 * fade);
+    FX.glow.add(f.x, gy + 0.25, f.z, f.r * 1.4 * fade, 1, 0.5, 0.12, 0.35 * fade);
+  }
+  fi.end();
   const ri = Effects.rockInst;
   ri.begin();
   for (const r of EnemyShots.rocks) {
@@ -905,7 +1024,7 @@ function dropCoins(x, z, value) {
   value = value * G.stats.gold;
   const n = Math.min(5, Math.max(1, Math.round(value / 4)));
   for (let i = 0; i < n; i++) {
-    if (Pickups.coins.length > 220) { G.gold += value / n; continue; }
+    if (Pickups.coins.length > 220) { G.gold += value / n; G.goldEarned += value / n; continue; }
     const cx = x + rand(-0.6, 0.6), cz = z + rand(-0.6, 0.6);
     Pickups.coins.push({ x: cx, z: cz, px: cx, pz: cz, v: value / n, att: false, sp: 0, t: Math.random() * 10, vy: rand(4, 7), y: 0.5, py: 0.5 });
   }
@@ -1138,7 +1257,9 @@ const Effects = {
     };
     this.wallGeo = new THREE.CylinderGeometry(1, 1, 0.9, 64, 1, true);
     this.beams = new Instancer(GEO.box, new THREE.MeshBasicMaterial({ color: 0xffffff }), 260, true);
-    this.rockInst = new Instancer(GEO.dodeca, mat({ color: 0x8a8478, flat: true }), 32, false, true);
+    this.rockInst = new Instancer(GEO.dodeca, mat({ color: 0x8a8478, flat: true }), 64, false, true);
+    this.fireInst = new Instancer(new THREE.CircleGeometry(1, 14).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), 160, true);
   },
   get(kind) {
     const pool = this.pools[kind] || (this.pools[kind] = []);

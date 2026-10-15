@@ -128,7 +128,7 @@ function initWeaponVisuals() {
       { geo: GEO.rbox, color: 0xd9a04a, pos: [0, 0.48, 0], scale: [0.22, 0.24, 0.24] },
     ], std, 50),
   };
-  EnemyShots.inst = new Instancer(GEO.ball1, new THREE.MeshBasicMaterial({ color: 0xffffff }), 200, true);
+  EnemyShots.inst = new Instancer(GEO.ball1, new THREE.MeshBasicMaterial({ color: 0xffffff }), 400, true);
 }
 
 function newWeapon(id, slot) {

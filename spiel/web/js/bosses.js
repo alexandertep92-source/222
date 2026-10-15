@@ -120,8 +120,8 @@ function updateBosses(dt) {
           const n = 16, off = b.waves * 0.2;
           for (let k = 0; k < n; k++) {
             const a = off + (k / n) * TAU;
-            fireEnemyOrb(b.x + Math.sin(a) * b.r, groundHeight(b.x, b.z) + 0.55, b.z + Math.cos(a) * b.r, Math.sin(a), Math.cos(a), 8, b.dmg * 0.45, 0xff7b3a);
-            EnemyShots.list[EnemyShots.list.length - 1].low = true;
+            const o = fireEnemyOrb(b.x + Math.sin(a) * b.r, groundHeight(b.x, b.z) + 0.55, b.z + Math.cos(a) * b.r, Math.sin(a), Math.cos(a), 8, b.dmg * 0.45, 0xff7b3a);
+            if (o) { o.low = true; o.src = 'boss'; }
           }
           b.waves++;
           Sound.zap();
@@ -166,8 +166,8 @@ function updateBosses(dt) {
             b.emitT -= 0.09;
             for (let k = 0; k < 3; k++) {
               const a = b.stateT * 2.6 * b.circle + (k / 3) * TAU;
-              fireEnemyOrb(b.x + Math.sin(a) * b.r, groundHeight(b.x, b.z) + 0.55, b.z + Math.cos(a) * b.r, Math.sin(a), Math.cos(a), 7.5, b.dmg * 0.35, 0xb06aff);
-              EnemyShots.list[EnemyShots.list.length - 1].low = true;
+              const o = fireEnemyOrb(b.x + Math.sin(a) * b.r, groundHeight(b.x, b.z) + 0.55, b.z + Math.cos(a) * b.r, Math.sin(a), Math.cos(a), 7.5, b.dmg * 0.35, 0xb06aff);
+              if (o) { o.low = true; o.src = 'boss'; }
             }
           }
           if (Math.random() < dt * 8) Sound.zap();
@@ -182,9 +182,8 @@ function updateBosses(dt) {
           b.waves = 1;
           for (let k = 0; k < 3; k++) {
             const a = b.rot + (k - 1) * 0.8;
-            fireEnemyOrb(b.x + Math.sin(a) * 1.6, b.y + lift + 3.2, b.z + Math.cos(a) * 1.6, Math.sin(a), Math.cos(a), 6.4, b.dmg * 0.55, 0x9dff5a);
-            const sh = EnemyShots.list[EnemyShots.list.length - 1];
-            sh.homing = 4.2; sh.r = 0.55; sh.life = 6.5;
+            const sh = fireEnemyOrb(b.x + Math.sin(a) * 1.6, b.y + lift + 3.2, b.z + Math.cos(a) * 1.6, Math.sin(a), Math.cos(a), 6.4, b.dmg * 0.55, 0x9dff5a);
+            if (sh) { sh.homing = 4.2; sh.r = 0.55; sh.life = 6.5; sh.src = 'boss'; }
           }
           Sound.whoom();
         }

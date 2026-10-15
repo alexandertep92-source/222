@@ -186,7 +186,7 @@ function cleanupRun() {
   for (const w of EnemyShots.waves) W.scene.remove(w.mesh);
   Pickups.gems.length = 0; Pickups.coins.length = 0; Pickups.items.length = 0;
   EnemyShots.list.length = 0; EnemyShots.waves.length = 0; EnemyShots.rocks.length = 0;
-  EnemyShots.blasts.length = 0; EnemyShots.pools.length = 0; Enemies.queue.length = 0;
+  EnemyShots.blasts.length = 0; EnemyShots.pools.length = 0; EnemyShots.fires.length = 0; Enemies.queue.length = 0;
   Particles.list.length = 0; Particles.sparks.length = 0; Particles.smoke.length = 0; Popups.list.length = 0;
   Effects.clear();
   for (const e of G.enemies) Enemies.pool.push(e);
@@ -338,10 +338,8 @@ function updateWorldObjects(dt) {
 
 // ---------- Gegnerwellen ----------
 function pickSpawnType() {
-  let row = SPAWN_TABLE[0];
-  for (const r of SPAWN_TABLE) if (G.time >= r.t) row = r;
-  const keys = Object.keys(row.w);
-  return weightedPick(keys, (k) => row.w[k]);
+  const w = spawnWeights(G.time);
+  return weightedPick(Object.keys(w), (k) => w[k]);
 }
 function spawnPos(minD, maxD) {
   const p = G.player, H = CONFIG.MAP_HALF;
@@ -399,7 +397,7 @@ function updateSpawner(dt) {
     let type = pickSpawnType();
     for (let i = 0; i < 6 && ENEMIES[type].noHorde; i++) type = pickSpawnType();
     if (ENEMIES[type].noHorde) type = 'skeleton';
-    const n = Math.min(14 + Math.floor(m * 2.5), 50);
+    const n = Math.min(18 + Math.floor(m * 3), 60);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * TAU;
       const x = clamp(p.x + Math.sin(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF), z = clamp(p.z + Math.cos(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF);
@@ -1090,6 +1088,16 @@ function botMove() {
     if (d < pl.r + 1.5) { vx += (dx / d) * 3; vz += (dz / d) * 3; }
   }
   for (const s of EnemyShots.list) if (s.homing > 0 && (s.x - p.x) ** 2 + (s.z - p.z) ** 2 < 6) Input.dashPressed = true;
+  // Feuer meiden, über niedrige Kugeln und Stacheln springen
+  for (const f of EnemyShots.fires) {
+    const dx = p.x - f.x, dz = p.z - f.z, d = Math.hypot(dx, dz) || 0.1;
+    if (d < f.r + 0.8) { vx += (dx / d) * 1.5; vz += (dz / d) * 1.5; }
+  }
+  for (const s of EnemyShots.list) {
+    if (!s.low || !p.grounded) continue;
+    const dx = p.x - s.x, dz = p.z - s.z;
+    if (dx * dx + dz * dz < 2.2 * 2.2 && dx * s.vx + dz * s.vz > 0) { Input.jumpPressed = true; break; }
+  }
   // Schockwellen überspringen, wie es ein Mensch tun würde
   for (const w of EnemyShots.waves) { const d = Math.hypot(p.x - w.x, p.z - w.z); if (d - w.R > 0 && d - w.R < 1.6 && p.grounded) Input.jumpPressed = true; }
   const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = -fz, rz = fx;

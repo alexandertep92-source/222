@@ -237,8 +237,15 @@ function attachHat(model, charId, hatId) {
 }
 
 // ---------- Gegner (zusammengesetzte Geometrien für InstancedMesh) ----------
+// Glied (Kapsel) von Punkt a nach Punkt b, z. B. Spinnenbeine
+function limb(a, b, r, color) {
+  const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(...d);
+  return { geo: GEO.cyl, color, pos: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], scale: [r, len, r], dir: d };
+}
 function enemyGeometry(type) {
   const W_ = 0xffffff, P = 0x15151f;
+  // Gegner sind oft zu Hunderten im Bild: gröbere Kapseln reichen völlig
+  const mp = (parts) => mergeParts(parts.map((q) => (q.geo === GEO.capsule ? Object.assign({}, q, { geo: GEO.capsuleLo }) : q)));
   const eyesAt = (y, z, sp, s) => [
     { geo: GEO.ball1, color: W_, pos: [-sp, y, z], scale: [s, s * 1.2, s * 0.5] },
     { geo: GEO.ball1, color: W_, pos: [sp, y, z], scale: [s, s * 1.2, s * 0.5] },
@@ -246,14 +253,14 @@ function enemyGeometry(type) {
     { geo: GEO.ball1, color: P, pos: [sp, y - s * 0.08, z + s * 0.14], scale: [s * 0.55, s * 0.7, s * 0.4] },
   ];
   switch (type) {
-    case 'slime': return mergeParts([
+    case 'slime': return mp([
       { geo: GEO.ball1, color: 0x5fd34c, pos: [0, 0.48, 0], scale: [1.3, 1.0, 1.3] },
       { geo: GEO.ball1, color: 0x4bbb3b, pos: [0, 0.18, 0], scale: [1.38, 0.38, 1.38] },
       { geo: GEO.ball1, color: 0xb6ff9a, pos: [0.22, 0.78, 0.18], scale: [0.36, 0.2, 0.3] },
       ...eyesAt(0.6, 0.56, 0.2, 0.22),
       { geo: GEO.ball1, color: 0x2a6b22, pos: [0, 0.36, 0.62], scale: [0.18, 0.06, 0.04] },
     ]);
-    case 'skeleton': return mergeParts([
+    case 'skeleton': return mp([
       { geo: GEO.capsule, color: 0xe9e4d4, pos: [-0.15, 0.36, 0], scale: [0.16, 0.38, 0.16] },
       { geo: GEO.capsule, color: 0xe9e4d4, pos: [0.15, 0.36, 0], scale: [0.16, 0.38, 0.16] },
       { geo: GEO.capsule, color: 0xd8d2bf, pos: [0, 1.0, 0], scale: [0.5, 0.36, 0.34] },
@@ -268,7 +275,7 @@ function enemyGeometry(type) {
       { geo: GEO.capsule, color: 0xe9e4d4, pos: [-0.34, 1.15, 0.26], scale: [0.12, 0.3, 0.12], rot: [Math.PI / 2, 0, 0] },
       { geo: GEO.capsule, color: 0xe9e4d4, pos: [0.34, 1.15, 0.26], scale: [0.12, 0.3, 0.12], rot: [Math.PI / 2, 0, 0] },
     ]);
-    case 'bat': return mergeParts([
+    case 'bat': return mp([
       { geo: GEO.ball1, color: 0x5b3a7a, pos: [0, 0.35, 0], scale: [0.62, 0.56, 0.6] },
       { geo: GEO.ball1, color: 0x7a55a0, pos: [0, 0.25, 0.12], scale: [0.4, 0.3, 0.4] },
       { geo: GEO.cone12, color: 0x3f2757, pos: [-0.6, 0.42, 0], scale: [0.5, 0.85, 0.06], rot: [0, 0, 1.25] },
@@ -280,7 +287,7 @@ function enemyGeometry(type) {
       { geo: GEO.cone, color: 0xffffff, pos: [-0.05, 0.26, 0.28], scale: [0.04, 0.08, 0.04], rot: [Math.PI, 0, 0] },
       { geo: GEO.cone, color: 0xffffff, pos: [0.05, 0.26, 0.28], scale: [0.04, 0.08, 0.04], rot: [Math.PI, 0, 0] },
     ]);
-    case 'spitter': return mergeParts([
+    case 'spitter': return mp([
       { geo: GEO.capsule, color: 0x3c8f3a, pos: [0, 0.5, 0], scale: [0.3, 0.6, 0.3] },
       { geo: GEO.ball1, color: 0x4fae42, pos: [-0.38, 0.22, 0], scale: [0.6, 0.12, 0.3], rot: [0, 0, 0.35] },
       { geo: GEO.ball1, color: 0x4fae42, pos: [0.38, 0.22, 0], scale: [0.6, 0.12, 0.3], rot: [0, 0, -0.35] },
@@ -292,7 +299,7 @@ function enemyGeometry(type) {
       { geo: GEO.ball1, color: 0x3a0a20, pos: [0, 1.1, 0.34], scale: [0.26, 0.26, 0.12] },
       ...eyesAt(1.42, 0.3, 0.17, 0.16),
     ]);
-    case 'golem': return mergeParts([
+    case 'golem': return mp([
       { geo: GEO.dodeca, color: 0x7c7f86, pos: [-0.38, 0.45, 0], scale: [0.6, 0.95, 0.65], flat: true },
       { geo: GEO.dodeca, color: 0x7c7f86, pos: [0.38, 0.45, 0], scale: [0.6, 0.95, 0.65], flat: true },
       { geo: GEO.dodeca, color: 0x8e9199, pos: [0, 1.5, 0], scale: [1.75, 1.45, 1.25], flat: true },
@@ -304,7 +311,7 @@ function enemyGeometry(type) {
       { geo: GEO.dodeca, color: 0x6c6f76, pos: [-1.0, 1.25, 0.1], scale: [0.55, 1.35, 0.6], flat: true },
       { geo: GEO.dodeca, color: 0x6c6f76, pos: [1.0, 1.25, 0.1], scale: [0.55, 1.35, 0.6], flat: true },
     ]);
-    case 'ghost': return mergeParts([
+    case 'ghost': return mp([
       { geo: GEO.cone12, color: 0xdff3ff, pos: [0, 0.62, 0], scale: [1.0, 1.25, 1.0], rot: [Math.PI, 0, 0] },
       { geo: GEO.ball2, color: 0xeef9ff, pos: [0, 1.25, 0], scale: [1.0, 0.92, 1.0] },
       { geo: GEO.ball1, color: 0x223344, pos: [-0.18, 1.32, 0.42], scale: [0.18, 0.24, 0.08] },
@@ -313,7 +320,7 @@ function enemyGeometry(type) {
       { geo: GEO.capsule, color: 0xdff3ff, pos: [-0.5, 1.05, 0.15], scale: [0.14, 0.3, 0.14], rot: [0.8, 0, 0.4] },
       { geo: GEO.capsule, color: 0xdff3ff, pos: [0.5, 1.05, 0.15], scale: [0.14, 0.3, 0.14], rot: [0.8, 0, -0.4] },
     ]);
-    case 'darkKnight': return mergeParts([
+    case 'darkKnight': return mp([
       { geo: GEO.capsule, color: 0x2a2633, pos: [-0.2, 0.42, 0], scale: [0.28, 0.5, 0.3] },
       { geo: GEO.capsule, color: 0x2a2633, pos: [0.2, 0.42, 0], scale: [0.28, 0.5, 0.3] },
       { geo: GEO.capsule, color: 0x3a3447, pos: [0, 1.3, 0], scale: [0.9, 0.55, 0.55] },
@@ -328,7 +335,7 @@ function enemyGeometry(type) {
       { geo: GEO.rbox, color: 0x9aa3b5, pos: [0.66, 1.2, 0.55], scale: [0.1, 0.1, 1.5] },
       { geo: GEO.rbox, color: 0x4a4258, pos: [0.66, 1.2, -0.1], scale: [0.36, 0.08, 0.1] },
     ]);
-    case 'wisp': return mergeParts([
+    case 'wisp': return mp([
       { geo: GEO.ball1, color: 0xd8feff, pos: [0, 0.32, 0], scale: [0.56, 0.56, 0.56] },
       { geo: GEO.ball1, color: 0x8ff3ff, pos: [0, 0.34, -0.22], scale: [0.42, 0.42, 0.5] },
       { geo: GEO.cone12, color: 0x5fdcff, pos: [0, 0.38, -0.55], scale: [0.36, 0.6, 0.36], rot: [-Math.PI / 2, 0, 0] },
@@ -336,7 +343,7 @@ function enemyGeometry(type) {
       { geo: GEO.ball1, color: 0x153848, pos: [-0.1, 0.36, 0.25], scale: [0.09, 0.14, 0.05] },
       { geo: GEO.ball1, color: 0x153848, pos: [0.1, 0.36, 0.25], scale: [0.09, 0.14, 0.05] },
     ]);
-    case 'bomber': return mergeParts([
+    case 'bomber': return mp([
       { geo: GEO.capsule, color: 0xf3e6c8, pos: [0, 0.42, 0], scale: [0.5, 0.42, 0.5] },
       { geo: GEO.cyl12, color: 0xf7dfb8, pos: [0, 0.8, 0], scale: [1.02, 0.08, 1.02] },
       { geo: GEO.ball2, color: 0xe8423a, pos: [0, 0.92, 0], scale: [1.14, 0.72, 1.14] },
@@ -349,7 +356,7 @@ function enemyGeometry(type) {
       ...eyesAt(0.52, 0.24, 0.11, 0.14),
       { geo: GEO.ball1, color: 0x6a2a1a, pos: [0, 0.32, 0.25], scale: [0.14, 0.07, 0.04] },
     ]);
-    case 'bigSlime': return mergeParts([
+    case 'bigSlime': return mp([
       { geo: GEO.ball2, color: 0x4a9cf0, pos: [0, 0.9, 0], scale: [2.2, 1.75, 2.2] },
       { geo: GEO.ball1, color: 0x3a82d6, pos: [0, 0.32, 0], scale: [2.32, 0.64, 2.32] },
       { geo: GEO.ball1, color: 0xc4e6ff, pos: [0.45, 1.45, 0.4], scale: [0.62, 0.32, 0.5] },
@@ -358,7 +365,7 @@ function enemyGeometry(type) {
       ...eyesAt(1.08, 0.95, 0.36, 0.36),
       { geo: GEO.ball1, color: 0x163a72, pos: [0, 0.66, 1.04], scale: [0.4, 0.13, 0.06] },
     ]);
-    case 'boar': return mergeParts([
+    case 'boar': return mp([
       { geo: GEO.ball2, color: 0x7a4e30, pos: [0, 0.78, -0.12], scale: [1.12, 0.98, 1.6] },
       { geo: GEO.ball1, color: 0x4a2e1c, pos: [0, 1.2, -0.22], scale: [0.26, 0.38, 1.25] },
       { geo: GEO.ball2, color: 0x8a5a38, pos: [0, 0.8, 0.66], scale: [0.8, 0.72, 0.72] },
@@ -379,7 +386,7 @@ function enemyGeometry(type) {
       { geo: GEO.capsule, color: 0x4a3020, pos: [0.34, 0.24, -0.62], scale: [0.2, 0.2, 0.2] },
       { geo: GEO.cone12, color: 0x4a2e1c, pos: [0, 0.9, -0.95], scale: [0.08, 0.3, 0.08], rot: [-2.2, 0, 0] },
     ]);
-    case 'frost': return mergeParts([
+    case 'frost': return mp([
       { geo: GEO.cone12, color: 0x4f97d8, pos: [0, 0.5, 0], scale: [0.88, 1.0, 0.88] },
       { geo: GEO.ball1, color: 0xe8fbff, pos: [0, 0.08, 0], scale: [0.92, 0.18, 0.92] },
       { geo: GEO.ball2, color: 0xcff2ff, pos: [0, 1.16, 0], scale: [0.74, 0.7, 0.72] },
@@ -392,7 +399,7 @@ function enemyGeometry(type) {
       { geo: GEO.capsule, color: 0x4f97d8, pos: [-0.38, 0.86, 0.06], scale: [0.14, 0.24, 0.14], rot: [0.4, 0, 0.35] },
       { geo: GEO.oct, color: 0xf2fdff, pos: [0.44, 0.98, 0.46], scale: [0.22, 0.34, 0.22], flat: true },
     ]);
-    case 'shaman': return mergeParts([
+    case 'shaman': return mp([
       { geo: GEO.cone12, color: 0x7a5a3a, pos: [0, 0.48, 0], scale: [0.82, 0.96, 0.82] },
       { geo: GEO.ball1, color: 0xe9e4d4, pos: [0, 0.9, 0.24], scale: [0.3, 0.26, 0.12] },
       { geo: GEO.ball2, color: 0x7cc35a, pos: [0, 1.12, 0.02], scale: [0.72, 0.64, 0.68] },
@@ -408,7 +415,7 @@ function enemyGeometry(type) {
       { geo: GEO.torus, color: 0x5a3b22, pos: [0.46, 1.74, 0.22], scale: [0.5, 0.5, 0.5] },
       { geo: GEO.ball1, color: 0x9dffa6, pos: [0.46, 1.74, 0.22], scale: [0.3, 0.3, 0.3] },
     ]);
-    case 'shieldBearer': return mergeParts([
+    case 'shieldBearer': return mp([
       { geo: GEO.capsule, color: 0x4a4f5e, pos: [-0.24, 0.42, -0.05], scale: [0.3, 0.46, 0.3] },
       { geo: GEO.capsule, color: 0x4a4f5e, pos: [0.24, 0.42, -0.05], scale: [0.3, 0.46, 0.3] },
       { geo: GEO.capsule, color: 0x6a7388, pos: [0, 1.2, -0.1], scale: [0.95, 0.6, 0.66] },
@@ -426,6 +433,122 @@ function enemyGeometry(type) {
       { geo: GEO.ball1, color: 0xf4c542, pos: [0.08, 1.44, 0.72], scale: [0.32, 0.32, 0.12] },
       { geo: GEO.cyl12, color: 0x8b5a2b, pos: [-0.66, 1.3, 0.25], scale: [0.07, 2.4, 0.07] },
       { geo: GEO.cone12, color: 0xdfe6ee, pos: [-0.66, 2.66, 0.25], scale: [0.16, 0.44, 0.16] },
+    ]);
+    case 'spider': {
+      const P = [];
+      for (const sx of [-1, 1]) {
+        for (let i = 0; i < 4; i++) {
+          const z = 0.32 - i * 0.2;
+          const hip = [sx * 0.2, 0.42, z], knee = [sx * 0.62, 0.68, z * 1.35], foot = [sx * 0.98, 0.02, z * 1.75];
+          P.push(limb(hip, knee, 0.08, 0x2a2233), limb(knee, foot, 0.07, 0x3a2f48));
+        }
+      }
+      return mp([
+        ...P,
+        { geo: GEO.ball2, color: 0x3a2a48, pos: [0, 0.44, 0.18], scale: [0.52, 0.42, 0.52] },
+        { geo: GEO.ball2, color: 0x2a1f36, pos: [0, 0.56, -0.42], scale: [0.85, 0.72, 0.95] },
+        { geo: GEO.ball1, color: 0xd9363e, pos: [0, 0.9, -0.42], scale: [0.18, 0.08, 0.32] },
+        { geo: GEO.ball1, color: 0x6a4a8a, pos: [0.2, 0.8, -0.2], scale: [0.12, 0.08, 0.12] },
+        { geo: GEO.ball1, color: 0xff3b3b, pos: [-0.09, 0.55, 0.42], scale: [0.1, 0.1, 0.06] },
+        { geo: GEO.ball1, color: 0xff3b3b, pos: [0.09, 0.55, 0.42], scale: [0.1, 0.1, 0.06] },
+        { geo: GEO.ball1, color: 0xff6a5a, pos: [-0.18, 0.6, 0.38], scale: [0.06, 0.06, 0.04] },
+        { geo: GEO.ball1, color: 0xff6a5a, pos: [0.18, 0.6, 0.38], scale: [0.06, 0.06, 0.04] },
+        { geo: GEO.cone12, color: 0xf4f0e2, pos: [-0.08, 0.3, 0.4], scale: [0.06, 0.16, 0.06], rot: [Math.PI, 0, 0] },
+        { geo: GEO.cone12, color: 0xf4f0e2, pos: [0.08, 0.3, 0.4], scale: [0.06, 0.16, 0.06], rot: [Math.PI, 0, 0] },
+      ]);
+    }
+    case 'kobold': return mp([
+      { geo: GEO.capsule, color: 0x5a3a90, pos: [-0.12, 0.17, 0], scale: [0.13, 0.15, 0.13] },
+      { geo: GEO.capsule, color: 0x5a3a90, pos: [0.12, 0.17, 0], scale: [0.13, 0.15, 0.13] },
+      { geo: GEO.capsule, color: 0x7a4fc0, pos: [0, 0.5, 0], scale: [0.36, 0.28, 0.3] },
+      { geo: GEO.ball2, color: 0x9b6ae0, pos: [0, 0.96, 0.02], scale: [0.62, 0.56, 0.56] },
+      { geo: GEO.cone12, color: 0x9b6ae0, pos: [-0.38, 1.02, 0], scale: [0.13, 0.42, 0.08], rot: [0, 0, 1.2] },
+      { geo: GEO.cone12, color: 0x9b6ae0, pos: [0.38, 1.02, 0], scale: [0.13, 0.42, 0.08], rot: [0, 0, -1.2] },
+      { geo: GEO.cone12, color: 0xffd166, pos: [-0.15, 1.24, -0.02], scale: [0.08, 0.24, 0.08], rot: [0, 0, 0.35] },
+      { geo: GEO.cone12, color: 0xffd166, pos: [0.15, 1.24, -0.02], scale: [0.08, 0.24, 0.08], rot: [0, 0, -0.35] },
+      { geo: GEO.ball1, color: 0xffe14a, pos: [-0.12, 1.0, 0.27], scale: [0.14, 0.1, 0.06] },
+      { geo: GEO.ball1, color: 0xffe14a, pos: [0.12, 1.0, 0.27], scale: [0.14, 0.1, 0.06] },
+      { geo: GEO.box, color: 0x1a1220, pos: [-0.12, 1.0, 0.3], scale: [0.03, 0.08, 0.02] },
+      { geo: GEO.box, color: 0x1a1220, pos: [0.12, 1.0, 0.3], scale: [0.03, 0.08, 0.02] },
+      { geo: GEO.box, color: 0xffffff, pos: [0, 0.82, 0.27], scale: [0.22, 0.04, 0.03] },
+      { geo: GEO.capsule, color: 0x7a4fc0, pos: [0, 0.38, -0.32], scale: [0.05, 0.22, 0.05], rot: [1.1, 0, 0] },
+      { geo: GEO.cone12, color: 0xd9363e, pos: [0, 0.55, -0.55], scale: [0.12, 0.16, 0.05], rot: [-0.5, 0, 0] },
+      { geo: GEO.box, color: 0xdfe6ee, pos: [0.32, 0.5, 0.28], scale: [0.04, 0.04, 0.42] },
+      { geo: GEO.box, color: 0x6a4428, pos: [0.32, 0.5, 0.04], scale: [0.06, 0.06, 0.14] },
+    ]);
+    case 'hedgehog': {
+      const P = [];
+      for (let i = 0; i < 22; i++) {
+        const az = i * 2.39996, el = 0.2 + (i / 22) * 1.25;
+        const d = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+        if (d[2] > 0.4) continue;
+        const c = [d[0] * 0.58, 0.5 + d[1] * 0.45, -0.05 + d[2] * 0.62];
+        P.push({ geo: GEO.cone12, color: i % 3 ? 0xe8d29a : 0xb08a5a, pos: [c[0] + d[0] * 0.18, c[1] + d[1] * 0.18, c[2] + d[2] * 0.18], scale: [0.14, 0.46, 0.14], dir: d });
+      }
+      return mp([
+        { geo: GEO.ball2, color: 0x7a5a3a, pos: [0, 0.5, -0.05], scale: [1.2, 0.95, 1.3] },
+        ...P,
+        { geo: GEO.ball1, color: 0xc9a07a, pos: [0, 0.42, 0.58], scale: [0.42, 0.34, 0.42] },
+        { geo: GEO.ball1, color: 0x1a1a22, pos: [0, 0.45, 0.8], scale: [0.13, 0.11, 0.08] },
+        { geo: GEO.ball1, color: 0x1a1a22, pos: [-0.17, 0.6, 0.52], scale: [0.09, 0.11, 0.05] },
+        { geo: GEO.ball1, color: 0x1a1a22, pos: [0.17, 0.6, 0.52], scale: [0.09, 0.11, 0.05] },
+        { geo: GEO.ball1, color: 0x5a3a22, pos: [-0.3, 0.08, 0.3], scale: [0.2, 0.14, 0.24] },
+        { geo: GEO.ball1, color: 0x5a3a22, pos: [0.3, 0.08, 0.3], scale: [0.2, 0.14, 0.24] },
+        { geo: GEO.ball1, color: 0x5a3a22, pos: [-0.3, 0.08, -0.35], scale: [0.2, 0.14, 0.24] },
+        { geo: GEO.ball1, color: 0x5a3a22, pos: [0.3, 0.08, -0.35], scale: [0.2, 0.14, 0.24] },
+      ]);
+    }
+    case 'lavaSlime': return mp([
+      { geo: GEO.ball2, color: 0x3a2622, pos: [0, 0.62, 0], scale: [1.6, 1.22, 1.6] },
+      { geo: GEO.ball1, color: 0x2a1a18, pos: [0, 0.22, 0], scale: [1.68, 0.45, 1.68] },
+      { geo: GEO.ball1, color: 0xffa040, pos: [0, 1.12, 0], scale: [0.95, 0.3, 0.95] },
+      { geo: GEO.ball1, color: 0xff6a1a, pos: [0.55, 0.85, 0.35], scale: [0.36, 0.12, 0.3], rot: [0.4, 0, -0.6] },
+      { geo: GEO.ball1, color: 0xff6a1a, pos: [-0.6, 0.6, -0.25], scale: [0.3, 0.12, 0.42], rot: [0, 0, 0.9] },
+      { geo: GEO.ball1, color: 0xff6a1a, pos: [0.2, 0.55, -0.7], scale: [0.4, 0.14, 0.2], rot: [-0.8, 0, 0] },
+      { geo: GEO.ball1, color: 0xffd36a, pos: [-0.18, 0.78, 0.68], scale: [0.2, 0.22, 0.08] },
+      { geo: GEO.ball1, color: 0xffd36a, pos: [0.18, 0.78, 0.68], scale: [0.2, 0.22, 0.08] },
+      { geo: GEO.ball1, color: 0x1a0a08, pos: [-0.18, 0.76, 0.72], scale: [0.1, 0.12, 0.05] },
+      { geo: GEO.ball1, color: 0x1a0a08, pos: [0.18, 0.76, 0.72], scale: [0.1, 0.12, 0.05] },
+      { geo: GEO.ball1, color: 0xff8a2a, pos: [0, 0.5, 0.76], scale: [0.3, 0.08, 0.05] },
+    ]);
+    case 'troll': return mp([
+      { geo: GEO.capsule, color: 0x5a6a4a, pos: [-0.38, 0.52, 0], scale: [0.44, 0.5, 0.44] },
+      { geo: GEO.capsule, color: 0x5a6a4a, pos: [0.38, 0.52, 0], scale: [0.44, 0.5, 0.44] },
+      { geo: GEO.ball2, color: 0x7a8a5a, pos: [0, 1.65, 0], scale: [1.75, 1.6, 1.3] },
+      { geo: GEO.ball2, color: 0x9aa878, pos: [0, 1.5, 0.36], scale: [1.1, 1.1, 0.7] },
+      { geo: GEO.rbox, color: 0x7a4f2a, pos: [0, 1.0, 0], scale: [1.25, 0.36, 1.0] },
+      { geo: GEO.ball2, color: 0x7a8a5a, pos: [0, 2.6, 0.28], scale: [0.78, 0.68, 0.72] },
+      { geo: GEO.ball1, color: 0x8a9a6a, pos: [0, 2.55, 0.66], scale: [0.26, 0.32, 0.26] },
+      { geo: GEO.ball1, color: 0x1a1a22, pos: [-0.17, 2.72, 0.58], scale: [0.1, 0.09, 0.05] },
+      { geo: GEO.ball1, color: 0x1a1a22, pos: [0.17, 2.72, 0.58], scale: [0.1, 0.09, 0.05] },
+      { geo: GEO.box, color: 0x3a4a2a, pos: [-0.17, 2.82, 0.56], scale: [0.22, 0.06, 0.05], rot: [0, 0, -0.35] },
+      { geo: GEO.box, color: 0x3a4a2a, pos: [0.17, 2.82, 0.56], scale: [0.22, 0.06, 0.05], rot: [0, 0, 0.35] },
+      { geo: GEO.cone12, color: 0xf4f0e2, pos: [-0.15, 2.36, 0.58], scale: [0.07, 0.18, 0.07] },
+      { geo: GEO.cone12, color: 0xf4f0e2, pos: [0.15, 2.36, 0.58], scale: [0.07, 0.18, 0.07] },
+      { geo: GEO.cone12, color: 0x7a8a5a, pos: [-0.42, 2.65, 0.2], scale: [0.16, 0.32, 0.1], rot: [0, 0, 1.1] },
+      { geo: GEO.cone12, color: 0x7a8a5a, pos: [0.42, 2.65, 0.2], scale: [0.16, 0.32, 0.1], rot: [0, 0, -1.1] },
+      { geo: GEO.capsule, color: 0x6a7a4a, pos: [-1.05, 1.62, 0.1], scale: [0.42, 0.72, 0.42], rot: [0, 0, -0.25] },
+      { geo: GEO.capsule, color: 0x6a7a4a, pos: [1.05, 1.62, 0.1], scale: [0.42, 0.72, 0.42], rot: [0, 0, 0.25] },
+      { geo: GEO.ball2, color: 0x7a8a5a, pos: [-1.22, 0.86, 0.2], scale: [0.52, 0.52, 0.52] },
+      { geo: GEO.ball2, color: 0x7a8a5a, pos: [1.22, 0.86, 0.2], scale: [0.52, 0.52, 0.52] },
+      { geo: GEO.dodeca, color: 0x8a8478, pos: [1.22, 1.22, 0.42], scale: [0.85, 0.8, 0.8], flat: true },
+    ]);
+    case 'mimic': return mp([
+      { geo: GEO.rbox, color: 0x8b5a2b, pos: [0, 0.42, 0], scale: [1.3, 0.8, 0.9] },
+      { geo: GEO.rbox, color: 0xffcf4a, pos: [-0.5, 0.42, 0], scale: [0.12, 0.84, 0.94] },
+      { geo: GEO.rbox, color: 0xffcf4a, pos: [0.5, 0.42, 0], scale: [0.12, 0.84, 0.94] },
+      { geo: GEO.rbox, color: 0x9b6a35, pos: [0, 1.0, -0.22], scale: [1.32, 0.34, 0.92], rot: [-0.55, 0, 0] },
+      { geo: GEO.rbox, color: 0xffcf4a, pos: [-0.5, 1.0, -0.22], scale: [0.12, 0.38, 0.96], rot: [-0.55, 0, 0] },
+      { geo: GEO.rbox, color: 0xffcf4a, pos: [0.5, 1.0, -0.22], scale: [0.12, 0.38, 0.96], rot: [-0.55, 0, 0] },
+      { geo: GEO.ball1, color: 0x5a0a1a, pos: [0, 0.82, 0.05], scale: [1.1, 0.12, 0.7] },
+      { geo: GEO.ball1, color: 0xff7aa8, pos: [0, 0.86, 0.32], scale: [0.45, 0.12, 0.4] },
+      ...[-0.42, -0.21, 0, 0.21, 0.42].map((x) => ({ geo: GEO.cone12, color: 0xfff6e0, pos: [x, 0.92, 0.38], scale: [0.1, 0.2, 0.1] })),
+      ...[-0.32, -0.1, 0.12, 0.34].map((x) => ({ geo: GEO.cone12, color: 0xfff6e0, pos: [x, 1.08, 0.22], scale: [0.09, 0.2, 0.09], rot: [Math.PI - 0.55, 0, 0] })),
+      { geo: GEO.ball1, color: 0xffffff, pos: [-0.26, 1.28, 0.06], scale: [0.2, 0.22, 0.12] },
+      { geo: GEO.ball1, color: 0xffffff, pos: [0.26, 1.28, 0.06], scale: [0.2, 0.22, 0.12] },
+      { geo: GEO.ball1, color: 0x15151f, pos: [-0.26, 1.27, 0.12], scale: [0.1, 0.13, 0.08] },
+      { geo: GEO.ball1, color: 0x15151f, pos: [0.26, 1.27, 0.12], scale: [0.1, 0.13, 0.08] },
+      { geo: GEO.rbox, color: 0xffcf4a, pos: [0, 0.55, 0.46], scale: [0.2, 0.22, 0.06] },
     ]);
   }
   return null;

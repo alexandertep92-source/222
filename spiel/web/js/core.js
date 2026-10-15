@@ -71,14 +71,16 @@ function groundHeight(x, z) {
 // Fügt mehrere einfache Formen zu einer Geometrie mit Vertex-Farben zusammen,
 // damit ein Gegnertyp als ein einziges InstancedMesh gezeichnet werden kann.
 // Teile sind glatt schattiert; flat: true ergibt Facetten (Felsen, Kristalle).
+const _up = new THREE.Vector3(0, 1, 0);
 function mergeParts(parts) {
   const pos = [], nor = [], col = [];
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
   const c = new THREE.Color();
   for (const p of parts) {
     let g = p.geo.clone();
-    e.set(...(p.rot || [0, 0, 0]));
-    q.setFromEuler(e);
+    // dir: Teil zeigt mit seiner y-Achse in diese Richtung (Beine, Stacheln), sonst Euler-Winkel
+    if (p.dir) q.setFromUnitVectors(_up, new THREE.Vector3(...p.dir).normalize());
+    else { e.set(...(p.rot || [0, 0, 0])); q.setFromEuler(e); }
     m.compose(new THREE.Vector3(...(p.pos || [0, 0, 0])), q, new THREE.Vector3(...(p.scale || [1, 1, 1])));
     g.applyMatrix4(m);
     if (g.index) g = g.toNonIndexed();
@@ -106,6 +108,7 @@ const GEO = {
   ball2: new THREE.IcosahedronGeometry(0.5, 2),
   ball3: new THREE.IcosahedronGeometry(0.5, 3),
   capsule: new THREE.CapsuleGeometry(0.5, 1, 4, 10),
+  capsuleLo: new THREE.CapsuleGeometry(0.5, 1, 2, 7), // für Gegner, von denen Hunderte gleichzeitig zu sehen sind
   cyl12: new THREE.CylinderGeometry(0.5, 0.5, 1, 12),
   cone12: new THREE.ConeGeometry(0.5, 1, 12),
   torus: new THREE.TorusGeometry(0.5, 0.15, 8, 20),
