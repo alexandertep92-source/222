@@ -1,0 +1,7 @@
+<resources>
+    <style name="RummsTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/rumms_ink</item>
+        <item name="android:statusBarColor">@color/rumms_ink</item>
+        <item name="android:navigationBarColor">@color/rumms_ink</item>
+    </style>
+</resources>

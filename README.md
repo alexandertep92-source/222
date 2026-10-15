@@ -113,3 +113,12 @@ Aufbau:
 
 Dart-, Java- und Swift-Implementierung schreiben und lesen exakt dasselbe
 Format (`TRV1`, Details in `vault_format.dart`).
+
+## Spiel „Rumms!“
+
+Im Ordner [`spiel/`](spiel/README.md) liegt zusätzlich ein eigenständiges
+3D-Survival-Spiel im Stil von Megabonk (Touch-Steuerung, fünf Helden mit je
+eigenen Waffen, 15-Minuten-Runden). Es hat einen eigenen Workflow
+(`.github/workflows/spiel.yml`) und erscheint als `Rumms.apk` im Release
+[`rumms`](https://github.com/alexandertep92-source/222/releases/tag/rumms).
+Änderungen am Spiel lösen den Build des Browser-Tresors nicht aus.
