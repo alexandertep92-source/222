@@ -11,6 +11,7 @@ function spawnBoss(id) {
     if (Math.hypot(x - p.x, z - p.z) > 16) break;
   }
   const mesh = buildBossModel(def.model);
+  addOutline(mesh, 0.08);
   W.scene.add(mesh);
   const hp = def.hp * (G.nightmare ? NIGHTMARE.bossHp : 1);
   const b = {

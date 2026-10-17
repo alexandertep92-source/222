@@ -5,8 +5,17 @@
 
 // Zeichnet viele gleiche Objekte mit einem einzigen Draw-Call.
 class Instancer {
-  constructor(geo, material, cap, colored, shadow) {
+  constructor(geo, material, cap, colored, shadow, outline) {
     this.mesh = new THREE.InstancedMesh(geo, material, cap);
+    // Kontur teilt sich die Matrizen mit dem Haupt-Mesh, kostet also nur einen Draw-Call
+    this.outline = null;
+    if (outline && GFX.outline) {
+      this.outline = new THREE.InstancedMesh(geo, outlineMaterial(outline), cap);
+      this.outline.instanceMatrix = this.mesh.instanceMatrix;
+      this.outline.frustumCulled = false;
+      this.outline.count = 0;
+      W.scene.add(this.outline);
+    }
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
     this.mesh.castShadow = !!shadow && GFX.shadows;
@@ -35,6 +44,7 @@ class Instancer {
   end() {
     this.mesh.count = this.n;
     this.mesh.visible = this.n > 0; // leere Meshes kosten sonst trotzdem einen Draw-Call
+    if (this.outline) { this.outline.count = this.n; this.outline.visible = this.n > 0; }
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
@@ -43,6 +53,7 @@ Instancer.all = [];
 Instancer.dummy = new THREE.Object3D();
 Instancer.dummy.rotation.order = 'YXZ';
 const ilerp = (a, b, t) => a + (b - a) * t;
+const DYING_TIME = 0.6; // so lange fliegt ein besiegter Gegner, bevor er verschwindet
 const alerp = (a, b, t) => a + angleDiff(a, b) * t;
 
 // ---------- Raster für schnelle Nachbarsuche ----------
@@ -328,7 +339,7 @@ function revivePlayer() {
     const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz) || 1;
     const k = 26 / e.mass;
     e.kvx += (dx / d) * k; e.kvz += (dz / d) * k;
-    if (k >= 8 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.45, 10); e.ay = 0.001; }
+    if (k >= 6.5 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.5, 11); e.ay = 0.001; e.crowdHop = false; }
   });
   EnemyShots.list.length = 0;
   ringFx(p.x, p.z, 9, 0xffd84a, 0.6, 0.1);
@@ -369,7 +380,7 @@ const Enemies = {
       const rough = id === 'slime' || id === 'bigSlime' ? 0.32 : id === 'golem' ? 0.95 : 0.7;
       const m = wisp ? new THREE.MeshBasicMaterial({ vertexColors: true })
         : mat({ vertexColors: true, rim: 0.3, rough, transparent: ghost, opacity: ghost ? 0.8 : 1 });
-      this.inst[id] = new Instancer(enemyGeometry(id), m, CONFIG.MAX_ENEMIES + 60, true, !ghost && !wisp && Settings.quality === 'high');
+      this.inst[id] = new Instancer(enemyGeometry(id), m, CONFIG.MAX_ENEMIES + 60, true, !ghost && !wisp && Settings.quality === 'high', !ghost && !wisp && 0.05);
     }
     this.shadows = new Instancer(new THREE.CircleGeometry(0.5, 14).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }), CONFIG.MAX_ENEMIES + 80);
@@ -392,7 +403,7 @@ const Enemies = {
       xp: def.xp * (1 + m * 0.05) * (elite ? 6 : 1),
       mass: def.mass * (elite ? 3 : 1),
       elite, boss: false, alive: true, dying: false, dyingT: 0, dead: false,
-      rot: 0, flash: 0, slowT: 0, slow: 0, spin: 0, hitAt: -9, landAt: -9,
+      rot: 0, flash: 0, slowT: 0, slow: 0, spin: 0, hitAt: -9, landAt: -9, hopCd: 0, crowdHop: false, bumps: 0,
       spawnT: opts.instant ? 0 : 0.5,
       shootT: def.ranged ? rand(1, def.ranged.cd) : def.spikes ? rand(1, def.spikes.cd) : def.lob ? rand(1.5, def.lob.cd) : 0,
       phase: Math.random() * TAU,
@@ -428,7 +439,19 @@ const Enemies = {
         e.dyingT -= dt;
         e.x += e.kvx * dt; e.z += e.kvz * dt;
         e.vy -= 30 * dt; e.yOff += e.vy * dt; e.spin += dt * 14;
+        // einmal auf dem Boden abprallen
+        if (e.yOff < 0 && e.vy < -4 && !e.def.fly) { e.yOff = 0; e.vy *= -0.38; e.kvx *= 0.6; e.kvz *= 0.6; }
         e.y = groundHeight(e.x, e.z) + (e.def.fly || 0) + Math.max(e.yOff, -0.5);
+        // fliegende Gegner stoßen lebende an (Kegeln)
+        if (e.bumps < 3 && e.yOff < e.h * 1.2 && e.kvx * e.kvx + e.kvz * e.kvz > 16) {
+          Grid.query(e.x, e.z, e.r * 0.9, (o) => {
+            if (o.boss || o.ay > 0 || e.bumps >= 3) return;
+            const k = 0.75 / Math.max(1, o.mass);
+            o.kvx += e.kvx * k; o.kvz += e.kvz * k; o.hitAt = t;
+            if (k * Math.hypot(e.kvx, e.kvz) > 5.5 && !o.def.fly) { o.avy = 5 + Math.random() * 2; o.ay = 0.001; }
+            e.bumps++; e.kvx *= 0.7; e.kvz *= 0.7;
+          });
+        }
         if (e.dyingT <= 0) e.dead = true;
         continue;
       }
@@ -440,9 +463,9 @@ const Enemies = {
         if (e.mode === 3) { e.mode = 0; e.hop = 0; }
         e.avy -= 32 * dt; e.ay += e.avy * dt;
         e.x += e.kvx * dt; e.z += e.kvz * dt;
-        e.spin += dt * 9;
+        if (!e.crowdHop) e.spin += dt * 9;
         const d2 = Math.exp(-1.5 * dt); e.kvx *= d2; e.kvz *= d2;
-        if (e.ay <= 0) { e.ay = 0; e.avy = 0; e.landAt = t; e.vx = e.vz = 0; e.spin = 0; }
+        if (e.ay <= 0) { e.ay = 0; e.avy = 0; e.landAt = t; e.vx = e.vz = 0; e.spin = 0; e.crowdHop = false; }
         continue;
       }
       const def = e.def;
@@ -627,6 +650,20 @@ const Enemies = {
                   const wa = b.mass / (a.mass + b.mass), wb = 1 - wa;
                   a.x -= dx * ov * wa; a.z -= dz * ov * wa;
                   b.x += dx * ov * wb; b.z += dz * ov * wb;
+                  // weggeschleuderte Gegner schubsen ihre Nachbarn mit (Dominoeffekt)
+                  const ka = a.kvx * a.kvx + a.kvz * a.kvz, kb = b.kvx * b.kvx + b.kvz * b.kvz;
+                  if (ka > 20 && ka > kb) { b.kvx += a.kvx * 0.3 * wb; b.kvz += a.kvz * 0.3 * wb; a.kvx *= 0.85; a.kvz *= 0.85; }
+                  else if (kb > 20) { a.kvx += b.kvx * 0.3 * wa; a.kvz += b.kvz * 0.3 * wa; b.kvx *= 0.85; b.kvz *= 0.85; }
+                  // stark eingequetscht: der Leichtere klettert über den anderen hinweg
+                  if (d < rr * 0.42 && t > a.hopCd && t > b.hopCd) {
+                    const c = a.mass <= b.mass ? a : b;
+                    if (!c.def.fly && c.mode === 0 && c.spawnT <= 0) {
+                      c.crowdHop = true; c.ay = 0.001; c.avy = 5.5 + Math.random() * 1.5;
+                      const px = p.x - c.x, pz = p.z - c.z, pd = Math.hypot(px, pz) || 1;
+                      c.kvx = (px / pd) * 2.6; c.kvz = (pz / pd) * 2.6;
+                      c.hopCd = t + 2.5 + Math.random() * 2;
+                    }
+                  }
                 }
               }
             }
@@ -747,7 +784,8 @@ const Enemies = {
       }
       if (e.ay > 0) { tilt = e.spin; }
       if (e.dying) {
-        const k = Math.max(0, e.dyingT / 0.35);
+        // erst fliegen, dann am Ende zusammenschrumpfen
+        const k = Math.min(1, Math.max(0, e.dyingT / DYING_TIME) * 2.6);
         tilt = e.spin; sx *= k; sy *= k; sz *= k;
       }
       if (e.flash > 0) { r = g = b = 2.4; } else if (e.elite) { r *= 1.5; g *= 1.2; b *= 0.45; }
@@ -785,7 +823,7 @@ function damageEnemy(e, amount, w, dirX, dirZ, knock) {
   if (knock && !e.boss) {
     const k = knock / e.mass;
     e.kvx += dirX * k; e.kvz += dirZ * k;
-    if (k >= 8 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.45, 10); e.ay = 0.001; }
+    if (k >= 6.5 && !e.def.fly && e.ay <= 0) { e.avy = Math.min(3.5 + k * 0.5, 11); e.ay = 0.001; e.crowdHop = false; }
   }
   addNumber(e.x, e.y + e.h + 0.2, e.z, dmg, crit, blocked && Settings.numbers ? '#a9bccf' : undefined);
   if (crit) sparkBurst(e.x, e.y + e.h * 0.6, e.z, 4, 0xffd23f, 4, 0.3);
@@ -803,21 +841,25 @@ function killEnemy(e, w, dx, dz) {
   if (sd) Enemies.queue.push({ type: sd.into, n: sd.n + (e.elite ? 3 : 0), x: e.x, z: e.z });
   // Ein abgeschossener Knallpilz explodiert mitten in seinen Freunden
   if (e.def.fuse) EnemyShots.blasts.push({ x: e.x, z: e.z, r: e.def.fuse.r * e.scale, dmg: e.maxHp * 1.2 });
-  e.dying = true; e.dyingT = 0.35;
-  e.vy = 6 + Math.random() * 4; e.yOff = e.ay;
-  const l = Math.hypot(dx || 0, dz || 0) || 1;
-  e.kvx = ((dx || 0) / l) * 7 + rand(-2, 2); e.kvz = ((dz || 0) / l) * 7 + rand(-2, 2);
+  // Rumms: besiegte Gegner fliegen im hohen Bogen davon und kegeln andere um
+  e.dying = true; e.dyingT = DYING_TIME; e.bumps = 0;
+  e.vy = 7.5 + Math.random() * 4.5; e.yOff = e.ay;
+  const l = Math.hypot(dx || 0, dz || 0) || 1, fling = 11 / Math.sqrt(Math.max(1, e.mass));
+  e.kvx = ((dx || 0) / l) * fling + rand(-2.5, 2.5); e.kvz = ((dz || 0) / l) * fling + rand(-2.5, 2.5);
   Sound.bonk();
   const col = ENEMY_COLORS[e.type];
   const cy = e.y + e.h * 0.5;
   spawnBurst(e.x, cy, e.z, e.elite ? 14 : 5, col, 5, 0.38);
   smokeBurst(e.x, cy, e.z, e.elite ? 6 : 2, 0xf4efe6, 1.2, 2);
   sparkBurst(e.x, cy, e.z, e.elite ? 10 : 3, 0xfff2b0, 5, 0.3);
+  sparkBurst(e.x, cy, e.z, e.elite ? 8 : 2, 0xffc93c, 4, 0.35);
   dropXp(e.x, e.z, e.xp);
   const m = G.time / 60;
-  // Gold: öfter und mehr; zähe Gegner (viel Erfahrung) lassen doppelt so viel fallen
-  if (e.def.gold) dropCoins(e.x, e.z, e.def.gold * (1 + m * 0.12));
-  else if (Math.random() < 0.15 || e.elite) dropCoins(e.x, e.z, e.elite ? 30 + m * 2 : (1 + Math.floor(m / 2)) * (e.def.xp >= 4 ? 2 : 1));
+  // Gold: jeder Gegner gibt mindestens 1 Gold; dazu Zufallsbeute, zähe Gegner (viel Erfahrung) doppelt so viel
+  let gold = 1;
+  if (e.def.gold) gold += e.def.gold * (1 + m * 0.12);
+  else if (Math.random() < 0.15 || e.elite) gold += e.elite ? 30 + m * 2 : (1 + Math.floor(m / 2)) * (e.def.xp >= 4 ? 2 : 1);
+  dropCoins(e.x, e.z, gold);
   if (Math.random() < 0.012) dropItem(e.x, e.z, 'food');
   else if (Math.random() < 0.0035) dropItem(e.x, e.z, 'magnet');
   if (e.elite) spawnChest(e.x, e.z, true);
@@ -1004,6 +1046,7 @@ function renderEnemyShots(a) {
 
 // ---------- Sammelobjekte ----------
 const Pickups = { gems: [], coins: [], items: [], gemInst: null, coinInst: null };
+const COIN_CAP = 300; // mehr gleichzeitige Münzen werden direkt gutgeschrieben
 const GEM_TIERS = [
   { max: 3, color: new THREE.Color(0x3ee0ff), size: 0.42 },
   { max: 10, color: new THREE.Color(0x5ee08a), size: 0.55 },
@@ -1020,13 +1063,14 @@ function dropXp(x, z, value) {
   const gx = x + rand(-0.3, 0.3), gz = z + rand(-0.3, 0.3);
   list.push({ x: gx, z: gz, px: gx, pz: gz, v: value, att: false, sp: 0, t: Math.random() * 10, pop: 0.35 });
 }
+// Münzen spritzen als kleine Fontäne aus dem Gegner und hüpfen einmal auf dem Boden
 function dropCoins(x, z, value) {
   value = value * G.stats.gold;
-  const n = Math.min(5, Math.max(1, Math.round(value / 4)));
+  const n = Math.min(6, Math.max(2, Math.round(value / 3) + 1));
   for (let i = 0; i < n; i++) {
-    if (Pickups.coins.length > 220) { G.gold += value / n; G.goldEarned += value / n; continue; }
-    const cx = x + rand(-0.6, 0.6), cz = z + rand(-0.6, 0.6);
-    Pickups.coins.push({ x: cx, z: cz, px: cx, pz: cz, v: value / n, att: false, sp: 0, t: Math.random() * 10, vy: rand(4, 7), y: 0.5, py: 0.5 });
+    if (Pickups.coins.length >= COIN_CAP) { G.gold += value / n; G.goldEarned += value / n; continue; }
+    const a = Math.random() * TAU, s = rand(1.5, 4.2);
+    Pickups.coins.push({ x, z, px: x, pz: z, vx: Math.sin(a) * s, vz: Math.cos(a) * s, v: value / n, att: false, sp: 0, t: Math.random() * 10, vy: rand(6, 9.5), y: 0.9, py: 0.9, bounce: 1 });
   }
 }
 function dropItem(x, z, kind) {
@@ -1042,7 +1086,7 @@ function initPickups() {
     { geo: GEO.cyl12, color: 0xffd23f, scale: [0.6, 0.08, 0.6], rot: [Math.PI / 2, 0, 0] },
     { geo: GEO.cyl12, color: 0xffe680, pos: [0, 0, 0.045], scale: [0.4, 0.02, 0.4], rot: [Math.PI / 2, 0, 0] },
   ]);
-  Pickups.coinInst = new Instancer(coinGeo, mat({ vertexColors: true, metal: 0.5, rough: 0.3, emissive: 0x4a3400 }), 240);
+  Pickups.coinInst = new Instancer(coinGeo, mat({ vertexColors: true, metal: 0.5, rough: 0.3, emissive: 0x4a3400 }), COIN_CAP + 10);
   const food = new THREE.Group();
   shape(food, GEO.ball2, mat({ color: 0xb5562d, rough: 0.6, rim: true }), 0.7, 0.55, 0.55, 0.15, 0, 0);
   shape(food, GEO.capsule, mat({ color: 0xf6efd8 }), 0.12, 0.3, 0.12, -0.35, 0, 0, 0, 0, Math.PI / 2);
@@ -1087,10 +1131,21 @@ function updatePickups(dt) {
   for (let i = coins.length - 1; i >= 0; i--) {
     const c = coins[i];
     c.t += dt; c.py = c.y;
-    if (c.vy !== 0) { c.vy -= 20 * dt; c.y += c.vy * dt; if (c.y <= 0.45) { c.y = 0.45; c.vy = 0; } }
-    if (move(c, 0.8)) {
+    const ox = c.x, oz = c.z;
+    if (c.vy !== 0) {
+      c.vy -= 24 * dt; c.y += c.vy * dt;
+      c.x = clamp(c.x + c.vx * dt, -CONFIG.MAP_HALF, CONFIG.MAP_HALF); c.z = clamp(c.z + c.vz * dt, -CONFIG.MAP_HALF, CONFIG.MAP_HALF);
+      if (c.y <= 0.45) {
+        c.y = 0.45;
+        if (c.bounce > 0) { c.bounce--; c.vy = -c.vy * 0.4; c.vx *= 0.5; c.vz *= 0.5; } else c.vy = 0;
+      }
+    }
+    const got = move(c, 0.8);
+    c.px = ox; c.pz = oz;
+    if (got) {
       G.gold += c.v; G.goldEarned += c.v;
       Sound.coin();
+      UI.goldBump();
       sparkBurst(p.x, p.y + 1, p.z, 2, 0xffd23f, 2, 0.25);
       coins[i] = coins[coins.length - 1]; coins.pop();
     }

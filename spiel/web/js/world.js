@@ -78,11 +78,23 @@ function groundColor(x, y, z, ny, c) {
   const deep = TC.grassDeep, mid = TC.grassMid, light = TC.grassLight;
   c.copy(deep).lerp(mid, n1);
   c.lerp(light, smoothstep(0.5, 4.5, y) * 0.65 + n2 * 0.15);
+  // Gras-Flecken im Kleinen: dunklere Büschel und sonnige Stellen
+  const n3 = Math.sin(x * 0.29 + Math.sin(z * 0.21) * 1.7) * Math.sin(z * 0.26 + Math.cos(x * 0.17) * 1.4);
+  if (n3 > 0.25) c.lerp(TC.grassShade, smoothstep(0.25, 0.85, n3) * 0.4);
+  else if (n3 < -0.35) c.lerp(TC.grassSun, smoothstep(-0.35, -0.9, n3) * 0.35);
   if (Math.sin(x * 0.19) * Math.sin(z * 0.17) > 0.62) c.lerp(TC.meadow, 0.45);
+  // ausgetretene Erdflecken
+  const n4 = Math.sin(x * 0.083 + Math.cos(z * 0.061) * 2.9) * Math.cos(z * 0.077 - Math.sin(x * 0.052) * 2.3);
+  const inside = Math.max(Math.abs(x), Math.abs(z)) < CONFIG.MAP_HALF;
+  if (n4 > 0.78 && inside) c.lerp(TC.dirtDark, smoothstep(0.78, 0.95, n4) * 0.7);
   const d = Math.hypot(x, z);
   if (d < 8) c.lerp(TC.dirt, 0.45 * smoothstep(8, 3, d));
-  const path = Math.abs(Math.sin(x * 0.035) * 30 - z);
-  if (path < 2.6 && Math.max(Math.abs(x), Math.abs(z)) < CONFIG.MAP_HALF) c.lerp(TC.dirt, 0.75 * smoothstep(2.6, 0.8, path));
+  // Trampelpfade mit dunklerem Rand
+  const path = Math.min(Math.abs(Math.sin(x * 0.035) * 30 - z), Math.abs(Math.cos(z * 0.029) * 38 + 12 - x));
+  if (path < 3.4 && inside) {
+    c.lerp(TC.grassShade, 0.35 * smoothstep(3.4, 2.4, path) * smoothstep(1.2, 2.2, path));
+    c.lerp(TC.dirt, 0.8 * smoothstep(2.4, 0.8, path));
+  }
   if (y < WL + 0.45) c.lerp(TC.sand, smoothstep(WL + 0.45, WL + 0.05, y));
   if (y < WL - 0.1) c.lerp(TC.lakeBed, smoothstep(WL - 0.1, WL - 0.8, y));
   c.lerp(TC.rock, smoothstep(0.86, 0.7, ny) * 0.9);
@@ -93,12 +105,13 @@ function groundColor(x, y, z, ny, c) {
 }
 const TC = {
   grassDeep: new THREE.Color(0x3f8f34), grassMid: new THREE.Color(0x5cad3f), grassLight: new THREE.Color(0x92cc55),
+  grassShade: new THREE.Color(0x2f7a32), grassSun: new THREE.Color(0xa6d65e), dirtDark: new THREE.Color(0x9a7448),
   meadow: new THREE.Color(0xb8cf5c), dirt: new THREE.Color(0xc59a62), sand: new THREE.Color(0xe2cf96),
   lakeBed: new THREE.Color(0x6f8a5a), rock: new THREE.Color(0x8f8a7e), snow: new THREE.Color(0xf4f7fb),
 };
 
 function buildTerrain() {
-  const half = CONFIG.WORLD_HALF, seg = 160;
+  const half = CONFIG.WORLD_HALF, seg = 220;
   const geo = new THREE.PlaneGeometry(half * 2, half * 2, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
@@ -593,6 +606,7 @@ function buildChest(free) {
     new THREE.MeshBasicMaterial({ color: free ? 0xc58bff : 0xffd75e, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
   glow.position.y = 3.5;
   g.add(glow);
+  addOutline(g, 0.04);
   g.userData = { lid, glow };
   return g;
 }

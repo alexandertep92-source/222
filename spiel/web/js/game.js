@@ -305,7 +305,11 @@ function updateWorldObjects(dt) {
         c.opened = true;
         if (!c.free) { G.chestsOpened++; respawnChest(); }
         Sound.chest();
-        spawnBurst(c.x, groundHeight(c.x, c.z) + 1, c.z, 18, c.free ? 0xc58bff : 0xffd23f, 6, 0.5);
+        const cy = groundHeight(c.x, c.z), col = c.free ? 0xc58bff : 0xffd23f;
+        spawnBurst(c.x, cy + 1, c.z, 26, col, 7, 0.5);
+        sparkBurst(c.x, cy + 1.2, c.z, 22, c.free ? 0xe7cfff : 0xfff1a8, 9, 0.5);
+        ringFx(c.x, c.z, 4.5, col, 0.45, 0.15);
+        G.shake = Math.max(G.shake, 0.25);
         openChoice('chest', c.minRarity);
         return;
       } else if (c.hintT <= 0) {
@@ -360,7 +364,7 @@ function updateSpawner(dt) {
   if (G.bosses.some((b) => b.alive && !b.def.final)) rate *= 0.45;
   if (G.nightmare) rate *= NIGHTMARE.rate;
   G.spawnAcc += rate * dt;
-  const eliteChance = (t < 120 ? 0 : 0.012 + m * 0.0016) * (G.nightmare ? NIGHTMARE.elite : 1);
+  const eliteChance = (t < 120 ? 0 : 0.015 + m * 0.002) * (G.nightmare ? NIGHTMARE.elite : 1);
   while (G.spawnAcc >= 1) {
     G.spawnAcc -= 1;
     if (alive >= CONFIG.MAX_ENEMIES) { G.spawnAcc = Math.min(G.spawnAcc, 3); break; }
@@ -397,7 +401,7 @@ function updateSpawner(dt) {
     let type = pickSpawnType();
     for (let i = 0; i < 6 && ENEMIES[type].noHorde; i++) type = pickSpawnType();
     if (ENEMIES[type].noHorde) type = 'skeleton';
-    const n = Math.min(18 + Math.floor(m * 3), 60);
+    const n = Math.min(22 + Math.floor(m * 3.6), 70);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * TAU;
       const x = clamp(p.x + Math.sin(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF), z = clamp(p.z + Math.cos(a) * 21, -CONFIG.MAP_HALF, CONFIG.MAP_HALF);
@@ -893,7 +897,11 @@ function applyResolution() {
   View.update();
   const q = QUALITY[Settings.quality];
   const dpr = window.devicePixelRatio || 1;
-  const pr = Math.max(0.5, Math.min(dpr, q.pixelRatio) * (1 + App.autoQ));
+  let pr = Math.max(0.5, Math.min(dpr, q.pixelRatio) * (1 + App.autoQ));
+  // Retro-Pixel-Look: höchstens ~320 Bildzeilen, kantig hochskaliert (spart nebenbei Leistung)
+  const retro = Settings.retro !== false;
+  if (retro) pr = Math.min(pr, Math.max(0.25, 320 / Math.max(1, View.h)));
+  W.renderer.domElement.classList.toggle('retro', retro);
   W.renderer.setPixelRatio(pr);
   W.renderer.setSize(View.w, View.h, false);
   Post.resize(View.w, View.h, pr);

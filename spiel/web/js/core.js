@@ -153,7 +153,7 @@ const SETTINGS_KEY = 'rumms.settings.v1';
 const RECORDS_KEY = 'rumms.records.v1';
 const Settings = Store.get(SETTINGS_KEY, {
   quality: 'mid', music: true, sfx: true, vibrate: true, numbers: true,
-  sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto',
+  sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto', retro: true,
 });
 function saveSettings() { Store.set(SETTINGS_KEY, Settings); }
 // Fortschritt über Runden hinweg: Sterne, Werkstatt, Erfolge, Hüte
@@ -170,7 +170,7 @@ const QUALITY = {
 // Alle Geräusche werden mit der Web-Audio-API erzeugt, es gibt keine Audiodateien.
 const Sound = {
   ctx: null, master: null, sfxGain: null, musicGain: null, noiseBuf: null,
-  last: {}, xpCombo: 0, xpComboT: 0,
+  last: {}, xpCombo: 0, xpComboT: 0, coinCombo: 0, coinComboT: 0,
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -227,7 +227,22 @@ const Sound = {
   jump() { if (this.ok('jump', 0.05)) this.tone('sine', 300, 620, 0.12, 0.2); },
   dash() { if (this.ok('dash', 0.1)) this.noise(0.2, 0.3, 300, 1, 'bandpass', 0, 3000); },
   hurt() { if (this.ok('hurt', 0.12)) { this.tone('square', 220, 90, 0.2, 0.18); this.noise(0.12, 0.2, 500, 1); } },
-  coin() { if (this.ok('coin', 0.05)) { this.tone('square', 1320, 1320, 0.05, 0.08); this.tone('square', 1760, 1760, 0.1, 0.08, 0.05); } },
+  // Münz-Pling: steigt beim schnellen Einsammeln in Halbtönen an
+  coin() {
+    if (!this.ok('coin', 0.045)) return;
+    const t = this.ctx.currentTime;
+    this.coinCombo = t - this.coinComboT < 0.4 ? Math.min(this.coinCombo + 1, 14) : 0;
+    this.coinComboT = t;
+    const f = 1175 * Math.pow(2, this.coinCombo / 12);
+    this.tone('square', f, f, 0.05, 0.07); this.tone('square', f * 1.335, f * 1.335, 0.1, 0.07, 0.045);
+  },
+  // Truhen-Enthüllung: je seltener, desto länger und höher die Fanfare
+  reveal(rarity) {
+    if (!this.ok('reveal', 0.3)) return;
+    const notes = [523, 659, 784, 1046, 1318, 1568, 2093];
+    for (let i = 0; i < 3 + rarity; i++) this.tone('triangle', notes[i], notes[i], 0.22, 0.13, 0.25 + i * 0.09);
+    if (rarity >= 3) this.noise(0.8, 0.08, 6000, 1, 'highpass', 0.25 + (3 + rarity) * 0.09);
+  },
   xp() {
     if (!this.ok('xp', 0.035)) return;
     const t = this.ctx.currentTime;

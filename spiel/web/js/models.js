@@ -144,6 +144,7 @@ function buildHero(id) {
   const mats = new Set();
   root.traverse((o) => { if (o.material && o.material.emissive) mats.add(o.material); });
   root.userData = Object.assign(root.userData || {}, { rig, legL, legR, armL, armR, head, body, eyes, tool, mats: [...mats], hipY });
+  addOutline(root, 0.035);
   return root;
 }
 
@@ -234,6 +235,7 @@ function attachHat(model, charId, hatId) {
   h.position.y = HAT_Y[charId] || 0.45;
   u.head.add(h);
   u.hat = h;
+  addOutline(h, 0.035);
 }
 
 // ---------- Gegner (zusammengesetzte Geometrien für InstancedMesh) ----------

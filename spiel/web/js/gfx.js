@@ -6,6 +6,7 @@ const GFX = {
   hq: true,          // Standard-Materialien (sonst Lambert für schwache Handys)
   shadows: true,
   bloom: false,
+  outline: true,     // dunkle Comic-Umrisse um Figuren (nicht auf Niedrig)
   time: 0,           // für Shader (Wind, Wasser)
   timeUniform: { value: 0 },
   sunDir: new THREE.Vector3(0.55, 0.75, 0.36).normalize(),
@@ -16,11 +17,12 @@ function setupRenderer(canvas) {
   GFX.hq = q !== 'low';
   GFX.shadows = q !== 'low';
   GFX.bloom = q === 'high';
+  GFX.outline = q !== 'low';
   const renderer = new THREE.WebGLRenderer({
     canvas, antialias: q !== 'low' && !GFX.bloom, powerPreference: 'high-performance', stencil: false,
   });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.1;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = GFX.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -30,9 +32,9 @@ function setupRenderer(canvas) {
 }
 
 function setupLights(scene) {
-  const hemi = new THREE.HemisphereLight(0xcfe9ff, 0x4f6b35, 1.35);
+  const hemi = new THREE.HemisphereLight(0xc4e2ff, 0x5c6b34, 1.3);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff1d6, 3.1);
+  const sun = new THREE.DirectionalLight(0xffe7c4, 3.3);
   sun.position.copy(GFX.sunDir).multiplyScalar(90);
   scene.add(sun, sun.target);
   if (GFX.shadows) {
@@ -98,6 +100,71 @@ function addRim(m, strength) {
       #include <tonemapping_fragment>`);
   };
   m.customProgramCacheKey = () => 'rim' + (prev ? '+' : '');
+}
+
+// ---------- Umrisse (Comic-Look) ----------
+// Dunkle Kontur um Helden, Gegner, Bosse und Truhen: eine aufgeblähte Kopie, von der nur
+// die Rückseiten gezeichnet werden. Die Breite gilt in Welteinheiten, egal wie groß oder
+// verzerrt ein Teil skaliert ist. Funktioniert für einzelne Meshes und InstancedMesh.
+const _outlineMats = {};
+function outlineMaterial(width) {
+  const key = width.toFixed(3);
+  if (_outlineMats[key]) return _outlineMats[key];
+  const m = new THREE.ShaderMaterial({
+    side: THREE.BackSide, fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { color: { value: new THREE.Color(0x1c1430) }, width: { value: width } }]),
+    vertexShader: `uniform float width;
+      #include <common>
+      #include <fog_pars_vertex>
+      void main(){
+        vec3 objectNormal = normal;
+        vec4 p = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          mat3 im = mat3(instanceMatrix);
+          objectNormal /= vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2]));
+          objectNormal = im * objectNormal;
+          p = instanceMatrix * p;
+        #endif
+        vec4 mvPosition = modelViewMatrix * p;
+        mvPosition.xyz += normalize(normalMatrix * objectNormal) * width;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 color;
+      #include <common>
+      #include <fog_pars_fragment>
+      void main(){
+        gl_FragColor = vec4(color, 1.0);
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+  _outlineMats[key] = m;
+  return m;
+}
+// Hängt an jedes undurchsichtige Teil eines Modells eine Kontur. Winzige Teile (Augen, Knöpfe)
+// bleiben ohne, sonst wirken sie verschmiert. Mehrfacher Aufruf ergänzt nur neue Teile.
+function addOutline(root, width) {
+  if (!GFX.outline) return;
+  root.updateMatrixWorld(true);
+  const list = [], ws = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.userData.outline || o.userData.hasOutline) return;
+    const m = o.material;
+    if (!m || Array.isArray(m) || m.transparent || m.isMeshBasicMaterial || m.isShaderMaterial || !m.visible) return;
+    if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+    o.getWorldScale(ws);
+    if (o.geometry.boundingSphere.radius * Math.max(ws.x, ws.y, ws.z) < 0.09) return;
+    list.push(o);
+  });
+  const om = outlineMaterial(width);
+  for (const o of list) {
+    const ol = new THREE.Mesh(o.geometry, om);
+    ol.userData.outline = true;
+    ol.raycast = () => {};
+    o.add(ol);
+    o.userData.hasOutline = true;
+  }
 }
 
 // Wind: wiegt Bäume und Büsche sanft (nur Vertex-Shader, Schatten bleiben ruhig).

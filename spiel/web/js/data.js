@@ -7,7 +7,7 @@ const CONFIG = {
   MAP_HALF: 104,          // begehbarer Bereich: -MAP_HALF … +MAP_HALF
   WATER_LEVEL: -3.3,      // Teiche in den Senken
   WORLD_HALF: 140,        // Gelände inkl. Randgebirge
-  MAX_ENEMIES: 340,
+  MAX_ENEMIES: 400,
   MAX_WEAPONS: 4,
   WEAPON_MAX_LEVEL: 12,
   REROLLS: 3,
@@ -24,9 +24,9 @@ const CONFIG = {
 };
 
 // Gegner werden mit der Zeit stärker (m = Minuten seit Rundenbeginn).
-function enemyHpScale(m) { return 1.15 + 0.26 * m + 0.09 * m * m; }
-function enemyDmgScale(m) { return 1.1 + 0.13 * m; }
-function spawnRate(m) { return 1.5 + 0.65 * m + 0.04 * m * m; } // Gegner pro Sekunde
+function enemyHpScale(m) { return 1.32 + 0.3 * m + 0.104 * m * m; }
+function enemyDmgScale(m) { return 1.21 + 0.143 * m; }
+function spawnRate(m) { return 1.8 + 0.78 * m + 0.048 * m * m; } // Gegner pro Sekunde
 function xpForLevel(l) { return Math.floor(6 + 5 * l + 0.48 * l * l); }
 
 const RARITIES = [

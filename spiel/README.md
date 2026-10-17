@@ -37,7 +37,10 @@ wählen.
 **Grafikstufen:** *Mittel* (Standard) mit Echtzeit-Schatten, Gras im Wind und
 Leuchteffekten; *Hoch* zusätzlich mit Bloom und schärferen Schatten; *Niedrig*
 für ältere Handys ohne Schatten und Gras. Die Auflösung passt sich automatisch
-an, wenn das Handy nicht hinterherkommt.
+an, wenn das Handy nicht hinterherkommt. Auf *Mittel* und *Hoch* haben Helden,
+Gegner, Bosse und Truhen dunkle Comic-Umrisse. Der **Retro-Pixel-Look** (an,
+abschaltbar unter *Einstellungen*) zeichnet die Spielwelt in kleiner Auflösung
+und skaliert sie kantig hoch.
 
 ## Helden und ihre Waffen
 
@@ -103,10 +106,13 @@ besonderer Fähigkeit zum ersten Mal auf, erscheint ein kurzer Hinweis.
   (gilt für alles). Karten haben Seltenheiten von *Gewöhnlich* bis *Legendär*;
   Glück erhöht die Chance auf seltene Karten. Drei Mal pro Runde darfst du neu
   würfeln.
-- **Gold** lassen besiegte Gegner fallen, zähe Gegner doppelt so viel, Bosse und
-  Mimiks besonders viel. Gold öffnet Truhen (jede weitere wird teurer, geöffnete
+- **Gold:** Jeder besiegte Gegner zerplatzt in einer kleinen Münzfontäne und gibt
+  mindestens 1 Gold, zähe Gegner mehr, Bosse und Mimiks besonders viel. Gold öffnet Truhen (jede weitere wird teurer, geöffnete
   Truhen tauchen an anderer Stelle neu auf). Lila Truhen von Elite-Gegnern und
   Bossen sind gratis.
+- **Truhen** zeigen beim Öffnen Lichtstrahlen in der Farbe der seltensten Karte.
+- **Physik:** Besiegte Gegner fliegen im hohen Bogen davon und kegeln andere um,
+  eingequetschte Gegner klettern übereinander.
 - **Schreine:** drei Sekunden im Kreis stehen bleiben, dann gibt es einen Segen.
 - Alle 90 Sekunden kommt eine **Horde**, nach 5 Minuten der **Schleimkönig**,
   nach 10 Minuten der **Golemfürst** und nach 12:30 **Hexe Morla**. Die Hexe

@@ -282,6 +282,8 @@ const UI = {
       const el = $(`#set-${key}`);
       el.addEventListener('change', () => { Settings[key] = el.checked; saveSettings(); Sound.applySettings(); });
     }
+    const retro = $('#set-retro');
+    retro.addEventListener('change', () => { Settings.retro = retro.checked; saveSettings(); applyResolution(); });
     const sens = $('#set-sens');
     sens.addEventListener('input', () => { Settings.sensitivity = parseFloat(sens.value); saveSettings(); $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`; });
   },
@@ -289,6 +291,7 @@ const UI = {
     $('#set-quality').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.q === Settings.quality));
     $('#set-landscape').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.l === (Settings.landscape || 'auto')));
     for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) $(`#set-${key}`).checked = !!Settings[key];
+    $('#set-retro').checked = Settings.retro !== false;
     $('#set-sens').value = Settings.sensitivity;
     $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`;
   },
@@ -323,6 +326,12 @@ const UI = {
       el.parentElement.classList.toggle('low', hp / max < 0.3);
     });
     this.set('gold', h.gold, Math.floor(G.gold), (el, v) => { el.textContent = v; });
+    const now = performance.now();
+    if (this.goldBumpT > 0 && now - this.goldBumpAt > 160) {
+      this.goldBumpT = 0; this.goldBumpAt = now;
+      const c = h.gold.parentElement;
+      c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+    }
     this.set('kills', h.kills, G.kills, (el, v) => { el.textContent = fmtNum(v); });
     this.set('rev', h.revive, G.revives, (el, v) => { el.hidden = !v; });
     const left = CONFIG.ROUND_SECONDS - G.time;
@@ -376,6 +385,8 @@ const UI = {
   },
 
   // ---------- Kartenwahl ----------
+  goldBumpT: 0, goldBumpAt: 0,
+  goldBump() { this.goldBumpT = 1; },
   showChoice(choice) {
     const titles = {
       level: [`Stufe ${G.level - G.pendingLevels + 1}!`, 'Wähle eine Verbesserung'],
@@ -385,9 +396,27 @@ const UI = {
     const [t, s] = titles[choice.source];
     $('#choice-title').textContent = t;
     $('#choice-sub').textContent = s;
-    $('#modal-choice').dataset.source = choice.source;
+    const modal = $('#modal-choice');
+    modal.dataset.source = choice.source;
     const box = $('#choice-cards');
     box.innerHTML = '';
+    // Truhe: Lichtstrahlen in der Farbe der besten Belohnung, dann klappen die Karten nacheinander auf
+    const reveal = choice.source === 'chest' && !choice.shown;
+    choice.shown = true;
+    modal.classList.remove('reveal');
+    let cardDelay = 70, cardStart = 0;
+    if (reveal) {
+      const best = Math.max(...choice.cards.map((c) => (c.rarity >= 0 ? c.rarity : 2)));
+      modal.style.setProperty('--best', RARITIES[best].color);
+      void modal.offsetWidth;
+      modal.classList.add('reveal');
+      if (best >= 3) $('#choice-title').textContent = best >= 4 ? 'Legendär!' : 'Episch!';
+      Sound.reveal(best);
+      cardDelay = 180; cardStart = 520;
+      box.style.pointerEvents = 'none';
+      clearTimeout(this.revealTimer);
+      this.revealTimer = setTimeout(() => { box.style.pointerEvents = ''; }, cardStart + choice.cards.length * cardDelay);
+    } else box.style.pointerEvents = '';
     choice.cards.forEach((c, i) => {
       const r = c.rarity >= 0 ? RARITIES[c.rarity] : null;
       const b = document.createElement('button');
@@ -399,7 +428,7 @@ const UI = {
         <span class="card-title">${esc(c.title)}</span>
         <span class="card-sub">${esc(c.sub)}</span>
         <span class="card-desc">${esc(c.desc)}</span>`;
-      b.style.animationDelay = `${i * 70}ms`;
+      b.style.animationDelay = `${cardStart + i * cardDelay}ms`;
       b.addEventListener('click', () => chooseCard(i));
       box.appendChild(b);
     });
