@@ -1,0 +1,268 @@
+.vp {
+  --vp-button-hover: #232323;
+  --vp-button-ring: #ffffff14;
+  --vp-part-ring: #ffffff10;
+  --vp-part-hover: #ffffff0a;
+  --vp-lamp-off: #4a4a4a;
+  --vp-lamp-on: #ffffff;
+}
+
+[data-theme="light"] .vp {
+  --vp-button-hover: #f0f0ed;
+  --vp-button-ring: #0000001a;
+  --vp-part-ring: #00000014;
+  --vp-part-hover: #0000000a;
+  --vp-lamp-off: #c4c4c4;
+  --vp-lamp-on: #000000;
+}
+
+.vp .iso-plate {
+  padding: 52px 24px 64px;
+  overflow: hidden;
+}
+
+.vp-stage {
+  position: relative;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vp-stage:focus {
+  outline: none;
+}
+
+.vp-stage:focus-visible {
+  outline: 1px solid var(--anatomy-muted);
+  outline-offset: 6px;
+}
+
+/* The liquid is a tint of the figure's own inks, cut with the pod. */
+.vp-liquid {
+  --anatomy-paper: #161a1d;
+  --anatomy-top: #1d2428;
+  --anatomy-shade-0: #111517;
+  --anatomy-shade-1: #13181a;
+  --anatomy-shade-2: #161b1e;
+  --anatomy-shade-3: #192023;
+}
+
+[data-theme="light"] .vp-liquid {
+  --anatomy-paper: #f1f4f5;
+  --anatomy-top: #eaf0f2;
+  --anatomy-shade-0: #d3dadd;
+  --anatomy-shade-1: #dce2e5;
+  --anatomy-shade-2: #e3e9eb;
+  --anatomy-shade-3: #e9eef0;
+}
+
+.vp-dark {
+  fill: var(--anatomy-shade-0);
+  stroke: none;
+}
+
+.vp-rubber {
+  fill: var(--anatomy-shade-1);
+  stroke: none;
+}
+
+.vp-flow .vp-air,
+.vp-flow .vp-vapour,
+.vp-flow .iso-dots,
+.vp-led {
+  opacity: 0;
+}
+
+.vp-flow .iso-line {
+  stroke-width: 1px;
+}
+
+.vp-mesh .iso-top,
+.vp-mesh .iso-shade,
+.vp-mesh .iso-edge,
+.vp-mesh .iso-crease,
+.vp-sensor .iso-line {
+  transition: fill 260ms var(--anatomy-ease), stroke 260ms var(--anatomy-ease);
+}
+
+/* While current flows the mesh is the one lit part. */
+.vp-stage[data-firing] .vp-mesh {
+  --anatomy-hi: var(--anatomy-lit);
+  --anatomy-mid: var(--anatomy-hi);
+  --anatomy-lo: var(--anatomy-mid);
+}
+
+.vp-stage[data-firing] .vp-mesh .iso-top {
+  fill: var(--anatomy-lit-top);
+}
+
+.vp-stage[data-firing] .vp-mesh .iso-shade {
+  fill: var(--anatomy-lit-shade);
+}
+
+.vp-stage[data-sensing] .vp-sensor {
+  --anatomy-mid: var(--anatomy-hi);
+}
+
+.vp-stage[data-focus] .it:not([data-on]) {
+  --anatomy-hi: var(--anatomy-mid);
+  --anatomy-mid: var(--anatomy-lo);
+}
+
+.it[data-on] {
+  --anatomy-hi: var(--anatomy-lit);
+  --anatomy-mid: var(--anatomy-hi);
+}
+
+.it[data-on] .iso-top,
+.it[data-on] .tb-shine {
+  fill: var(--anatomy-lit-top);
+}
+
+.it[data-on] .iso-shade,
+.it[data-on] .tb-body {
+  fill: var(--anatomy-lit-shade);
+}
+
+.vp-controls {
+  position: absolute;
+  left: 20px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--anatomy-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--anatomy-muted);
+}
+
+.vp-draw {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 13px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--anatomy-face);
+  color: var(--anatomy-strong);
+  font: inherit;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: inset 0 0 0 1px var(--vp-button-ring);
+  transition: background 200ms var(--anatomy-ease), transform 160ms var(--anatomy-ease);
+}
+
+.vp-draw:hover {
+  background: var(--vp-button-hover);
+}
+
+.vp-draw[data-state] {
+  transform: scale(0.97);
+}
+
+.vp-draw:focus-visible {
+  outline: 1px solid var(--anatomy-muted);
+  outline-offset: 3px;
+}
+
+.vp-lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vp-lamp-off);
+  transition: background 160ms var(--anatomy-ease), box-shadow 160ms var(--anatomy-ease);
+}
+
+.vp-draw[data-state="firing"] .vp-lamp {
+  background: var(--vp-lamp-on);
+  box-shadow: 0 0 8px 1px var(--vp-lamp-on);
+}
+
+.vp-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.vp-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--anatomy-muted);
+  font: 12.5px/1.3 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--vp-part-ring);
+  transition: color 160ms var(--anatomy-ease), background 160ms var(--anatomy-ease);
+}
+
+.vp-part:hover,
+.vp-part:focus-visible,
+.vp-part[data-on] {
+  color: var(--anatomy-strong);
+  background: var(--vp-part-hover);
+  outline: none;
+}
+
+.vp-num {
+  font-family: var(--anatomy-mono);
+  font-size: 10px;
+  color: var(--anatomy-muted);
+}
+
+.vp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .vp .iso-plate {
+    padding: 48px 8px 88px;
+  }
+
+  .vp-stage > svg {
+    width: 118%;
+    margin: 0 -9%;
+  }
+
+  .vp .iso-plate-corner[data-corner="readout"] {
+    bottom: 46px;
+    right: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vp-controls {
+    left: 14px;
+    bottom: 14px;
+    gap: 10px;
+    max-width: calc(100% - 28px);
+    flex-wrap: wrap;
+  }
+
+  .vp-hint {
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+  }
+}
+
+[data-theme="light"] .vp-draw[data-state="firing"] .vp-lamp {
+  box-shadow: 0 0 0 3px #0000001a;
+}
