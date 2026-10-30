@@ -1,0 +1,12 @@
+{
+  "name": "Rumms!",
+  "short_name": "Rumms",
+  "description": "Überlebe 15 Minuten gegen endlose Horden und besiege den Großen Rummser.",
+  "lang": "de",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1b1530",
+  "theme_color": "#1b1530",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
