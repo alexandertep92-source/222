@@ -1,0 +1,284 @@
+Bir ajandan projenizdeki açık hataları bulmasını ve bir takip kaydı taslağı hazırlamasını istiyorsunuz. Bunun için iyi talimatlardan fazlası gerekir. Ajanın hata takip sisteminize ulaşması, doğru verileri okuması ve belki de orada yeni bir kayıt oluşturması gerekir.
+
+**Araçlar**, **bağlayıcılar** ve **MCP** burada devreye girer. Birbirleriyle ilişkilidirler, ama kurulumun farklı parçalarını anlatırlar.
+
+## Araçlar, API'ler, Bağlayıcılar ve MCP
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">Terim</th>
+      <th scope="col">Anlamı</th>
+      <th scope="col">Hata takip sistemi örneği</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Araç</td>
+      <td>Ajanın kullanabildiği belirli bir işlem</td>
+      <td>Kayıt aramak veya kayıt oluşturmak</td>
+    </tr>
+    <tr>
+      <td>API</td>
+      <td>Yazılımın başka bir sistemle iletişim kurmak için kullanabildiği arayüz</td>
+      <td>Takip sisteminin kayıtları okumak ve yazmak için sunduğu uç noktalar</td>
+    </tr>
+    <tr>
+      <td>Bağlayıcı</td>
+      <td>Yapay zeka uygulamasını bir hizmete veya veri kaynağına bağlayan entegrasyon</td>
+      <td>Hesap bağlantısı ve desteklenen işlemleriyle hata takip sistemi entegrasyonu</td>
+    </tr>
+    <tr>
+      <td>MCP</td>
+      <td>Yapay zeka uygulamalarıyla bağlam paylaşmak ve yetenekleri kullanıma sunmak için bir protokol</td>
+      <td>Takip sisteminin araçlarını keşfetmek ve çağırmak için ortak bir yol</td>
+    </tr>
+  </tbody>
+</table>
+
+Bir araç yerel olarak da çalışabilir. Hesap makinesi için hesap bağlantısı gerekmez. Dosya okuma aracı tamamen bilgisayarınızda çalışabilir. Harici bir hizmet, araçların olası kaynaklarından yalnızca biridir.
+
+## Bir Araç Aslında Neler İçerir?
+
+Bir aracın genellikle **adı**, **açıklaması**, **girdi şeması** ve işi yapan bir uygulama kodu vardır. Açıklama, modelin aracı ne zaman kullanacağına karar vermesine yardımcı olur. Şema, aracın kabul ettiği parametreleri tanımlar.
+
+İşte küçük, hayali bir MCP aracı tanımı:
+
+<Collapsible title="search_issues tanımını incele">
+
+```json
+{
+  "name": "search_issues",
+  "description": "Bağlı projedeki kayıtları ara. Bu araç yalnızca veri okur.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" },
+      "limit": { "type": "integer", "minimum": 1, "maximum": 20 }
+    },
+    "required": ["query"],
+    "additionalProperties": false
+  }
+}
+```
+
+</Collapsible>
+
+Model, `{"query": "açık hatalar", "limit": 3}` parametreleriyle `search_issues` isteğinde bulunabilir. Uygulama bu isteği işi yapan koda yönlendirir. Bu kod takip sistemini sorgular ve sonuçları veya bir hatayı geri döndürür.
+
+Ad ve şema tek başına hiçbir şey çalıştırmaz. Aracın kodu girdileri doğrulamalı, erişimi kontrol etmeli ve gerçek işlemi yapmalıdır. Araç yanıtı da modelin son yanıtından ayrıdır: araç yanıtında kayıt kimlikleri ve başlıkları olabilir, model de bunları özetler. [MCP araçları belirtimi](https://modelcontextprotocol.io/specification/latest/server/tools), araçların bu işlemleri nasıl sunduğunu açıklar.
+
+<Callout type="info" title="İstek, sonuç değildir">
+"Bir kayıt oluşturacağım" bir ifadedir. Araç çağrısı işlemi talep eder. Yeni kaydın kimliğini içeren başarılı bir yanıt ise işlemin yapıldığına dair kanıttır. Bu üçünü birbirinden ayırın.
+</Callout>
+
+### Bir Araç Koca Bir İş Akışını Temsil Edebilir
+
+Şimdiye kadar her araç tek bir işlemdi: aramak, oluşturmak, dışa aktarmak. Ama bir aracın adının arkasındaki kod çok daha büyük olabilir. Önceden yazılmış ve bir iş akışı motorunun yürüttüğü koca bir süreç de olabilir. Süreci **ne zaman** başlatacağına ve ona **hangi girdiyi** vereceğine yine ajan karar verir. Ondan sonrası ise sürecin tanımladığı gibi, her seferinde aynı sırayla işler.
+
+Bir para iadesini düşünün. Destek ajanı sinirli bir müşteriyi anlamakta gayet başarılı olabilir, ama iade politikanızı doğaçlamayla yürütmesini muhtemelen istemezsiniz. Tek bir araç olarak paketlenen iade iş akışı, hangi konuşma başlatmış olursa olsun önce uygunluğu kontrol eder, sonra bir yöneticiden onay ister, en son da tutarı hesaba geçirir. Onaylar, dağıtımlar ve adımların bizzat politikanın kendisi olduğu diğer süreçler de bu kalıba uyar. İş akışı motorları genellikle her çalıştırmanın kaydını tutar; bu sayede ajan geçmiş çalıştırmalara da bakabilir ve tahmin yürütmek yerine, gece hangi çalıştırmaların hangi adımda takıldığını söyleyebilir.
+
+Yakın tarihli bir örneği AWS veriyor. AWS, 29 Ekim 2026'da Step Functions iş akışlarının, ajanları MCP üzerinden araçlara bağlayan Amazon Bedrock AgentCore Gateway aracılığıyla ajan aracı olarak kullanılabileceğini [duyurdu](https://aws.amazon.com/about-aws/whats-new/2026/10/step-functions-workflows-ai-agent-tools/). Fikir tek bir sağlayıcıya özgü değil: bir CI hattı, bir talep sistemindeki onay akışı ya da ekibinizin zaten güvendiği bir betik de ajana aynı şekilde sunulabilir.
+
+Burada iki gücü dengeliyorsunuz. Model esnektir: alışılmadık bir durumu okuyup mantıklı bir sonraki adımı seçebilir. İş akışı ise öngörülebilirdir: aynı girdi her seferinde aynı adımlardan geçer. Ne zaman başlanacağını ajana, nasıl ilerleneceğini iş akışına bırakmak, her iki gücü de ait olduğu yere koyar. Bu, promptu da değiştirir. İş akışının içindeki adımları değil, hedefi ve iş akışının ne zaman çağrılacağını anlatın. Adımları prompta yeniden yazmak politikanın ikinci bir kopyasını oluşturur. Bu kopya zamanla aslından kopabilir, model de adımları kendi başına uygulamaya kalkışabilir.
+
+<Compare
+  before={{ label: "İş akışını yeniden anlatan prompt", content: "Bir müşteriye iade yapmak için önce siparişin 30 günden eski olmadığını kontrol et, sonra bir yöneticiye sor, ardından tutarı hesaba geçir ve en son müşteriye e-posta gönder." }}
+  after={{ label: "Hedefi ve tetikleyiciyi anlatan prompt", content: "Müşterilerin fatura sorunlarını çözmesine yardım et. Bir müşteri iade isterse ve sipariş numarası elindeyse, iade iş akışını bu numarayla ve iade gerekçesiyle çağır. İş akışının döndürdüğü sonucu bildir. İş akışı onaylamadan iade sözü verme." }}
+/>
+
+## Bağlayıcı Ne Ekler?
+
+Bağlayıcı, belirli bir sistemle entegrasyonu bir araya getirir. Oturum açmayı, hesap veya çalışma alanı seçmeyi, veri bulmayı ve desteklenen işlemleri araç olarak sunmayı sağlayabilir. Bazı bağlayıcılar yalnızca arama veya okuma yapar. Bazıları yazmayı da destekler.
+
+**Bağlayıcı, evrensel bir teknik standart değil, bir ürün terimidir.** Bir bağlayıcı doğrudan hizmetin API'sini çağırabilir. Bir başkası MCP sunucusu kullanabilir. Üçüncüsü, eşitlenmiş belgelerden oluşturulan bir dizinde arama yapabilir. Kullandığınız entegrasyonun neleri desteklediğini kontrol edin. Microsoft'un [bağlayıcılara genel bakış belgesi](https://learn.microsoft.com/en-us/azure/connectors/introduction), API'ler üzerine kurulan entegrasyonlara bir örnek verir.
+
+Bir hesabı bağlamak, ajanın her dosyayı gördüğü, tüm verilerinizi bağlamına yüklediği veya her işlemi yapma izni olduğu anlamına gelmez. Erişim; hesaba, yapılandırılmış yetki kapsamlarına, uygulamaya ve hizmetin kendi izinlerine bağlıdır. Arama sonuçları da asıl belgelerden daha eski bir dizine dayanıyor olabilir.
+
+Hata takip sistemi için şu soruları ayrı ele alın: Bir bağlantı yapılandırılmış mı? Hangi projeye erişebiliyor? Yalnızca okuyabiliyor mu, yoksa kayıt da oluşturabiliyor mu?
+
+## MCP Neyi Standartlaştırır?
+
+**MCP**, **Model Context Protocol** ifadesinin kısaltmasıdır. Yapay zeka uygulamalarının ve harici yetenek sağlayıcılarının iletişim kurması için ortak bir yol tanımlar. Hizmetin API'sinin yerini almaz; MCP sunucusu arka planda bu API'yi kullanabilir.
+
+[MCP mimarisinde](https://modelcontextprotocol.io/docs/learn/architecture) üç ana rol vardır:
+
+<InfoGrid columns={3} items={[
+  { label: "Ana uygulama", description: "Kullanıcının çalıştığı yapay zeka uygulaması. Bağlantıları, model etkileşimlerini ve izinleri koordine eder.", color: "blue" },
+  { label: "İstemci", description: "Ana uygulamanın içinde, MCP sunucusuyla bağlantıyı sürdüren parça.", color: "green" },
+  { label: "Sunucu", description: "MCP üzerinden araçlar, kaynaklar veya promptlar sunan program. Yerel veya uzakta çalışabilir.", color: "amber" }
+]} />
+
+Bir araç çağrısı için istemci, `tools/list` ile sunucunun araçlarını keşfedebilir. Uygulama, ilgili araç tanımlarını modele sunar. Model bunlardan birini isterse uygulama, MCP istemcisi üzerinden `tools/call` isteği gönderebilir. Sunucu işlemi yürütür veya başka bir bileşene devreder ve sonucu döndürür.
+
+Modelin kendisinin ağ bağlantısı açması gerekmez. İletişimi uygulama ve MCP'yi uygulayan yazılım yönetir. Uyumluluk yine önemlidir: ana uygulama ve sunucu, kullanmak istediğiniz yetenekleri desteklemelidir. Bir aracı keşfetmek onu çalıştırma iznini garanti etmez; erişim kontrolleri yine geçerlidir.
+
+### MCP Araçlardan Fazlasını Sunar
+
+MCP ayrıca **kaynakları** ve **promptları** da tanımlar. Bu kelimelerin protokol içinde belirli anlamları vardır:
+
+<InfoGrid columns={3} items={[
+  { label: "Araçlar", description: "Modelin, uygulamanın kontrollerine bağlı olarak isteyebildiği işlemler. Örnek: kayıt aramak.", color: "blue" },
+  { label: "Kaynaklar", description: "Uygulamanın bağlam olarak sunabildiği veriler. Örnek: URI ile tanımlanan bir proje rehberi.", color: "green" },
+  { label: "Promptlar", description: "Kullanıcıların seçebildiği, isteğe bağlı parametreleri olan yeniden kullanılabilir mesaj şablonları. Örnek: kayıtları değerlendiren bir rapor hazırlamak.", color: "amber" }
+]} />
+
+[MCP sunucu kavramları rehberi](https://modelcontextprotocol.io/docs/learn/server-concepts), bunları model kontrollü araçlar, uygulama kontrollü kaynaklar ve kullanıcı kontrollü promptlar olarak tanımlar. Bunlar amaçlanan etkileşim biçimlerini anlatır. Uygulamanın izin kontrollerini ortadan kaldırmazlar.
+
+Bir MCP prompt şablonu otomatik olarak beceri sayılmaz. Beceri daha uzun bir yöntemi, referansları ve betikleri bir araya getirebilir. Ajana MCP, doğrudan bir bağlayıcı veya yerel fonksiyonlar üzerinden sunulan araçları nasıl kullanacağını anlatabilir.
+
+### Beceriler de Sunucuyla Birlikte Gelebilir
+
+Yakın zamana kadar bu iki parça genellikle ayrı ayrı gelirdi. Bir sunucu ajana araçlarını verebiliyordu, ama bu araçları iyi kullanmanın püf noktaları başka bir yerde dururdu: ayrıca kurulan bir beceride, bir README dosyasında ya da kullanıcının kendi promptunda. Hizmet değiştiğinde bu talimatlar kimse fark etmeden geride kalabiliyordu.
+
+MCP'nin Eylül 2026'da kesinleşen resmî **Skills uzantısı**, bu boşluğun büyük kısmını kapatıyor. Artık bir sunucu yalnızca araçlarını değil, bu araçların nasıl kullanılacağını anlatan becerileri de sunabiliyor. Bu beceriler, [Ajanlar ve Yetenekler](/book/25-agents-and-skills) bölümünde anlatılan `SKILL.md` biçiminde yazılır. Araçlar ajana neler yapabileceğini söyler; beceriler ise işi nasıl iyi yapacağını. İkisi aynı sunucudan gelebildiğinde talimatlar, anlattıkları hizmetin hemen yanında durur ve o hizmetin bakımını yapanlar tarafından güncel tutulabilir.
+
+Bu mekanizma, daha önce tanıdığınız parçaların üzerine kurulur. Bir becerideki her dosya bir MCP kaynağı olarak sunulur ve genellikle `skill://` ile başlayan bir URI taşır. İstemci, sunucudaki becerileri `skills/list` ile listeleyebilir, birini `skills/get` ile alabilir ve yardımcı dosyalarını `resources/read` ile okuyabilir.
+
+<Compare
+  before={{ label: "Yalnızca araç sunan sunucu", content: "Kayıt takip sunucusu search_issues ve create_issue araçlarını sunar. Kayıtları değerlendirme yöntemi (tekrar eden kayıtları kontrol etmek, kayıt şablonunu izlemek) ayrıca kurulmuş bir beceriden ya da sizin promptunuzdan gelmek zorundadır ve hizmet değiştikçe güncelliğini yitirebilir." }}
+  after={{ label: "Becerisini de yanında getiren sunucu", content: "Aynı sunucu bir kayıt değerlendirme becerisi de sunar. Ana uygulama önce yalnızca becerinin adını ve açıklamasını görür; talimatların tamamını ancak görev gerektirdiğinde yükler. Hizmetin bakımını yapanlar hizmeti değiştirdiğinde beceriyi de onunla birlikte güncelleyebilir." }}
+/>
+
+Becerinin modele nasıl ulaşacağına yine ana uygulama karar verir. Model, beceriyi adına ve açıklamasına bakarak seçebilir; kullanıcı da doğrudan seçebilir. Her iki durumda da talimatların tamamı ancak gerektiğinde bağlama girer. Bir `SKILL.md` dosyasını okumak, beceriyi tek başına etkinleştirmez.
+
+<Callout type="warning" title="Sunucudan gelen beceri de bir talimattır">
+Sunucudan gelen bir beceri, ajanın bağlamına giren bir metindir ve ajanın bundan sonra ne yapacağını etkileyebilir. Bu yüzden sunucunun kendisi kadar dikkatli bir incelemeyi hak eder. Özenli bir ana uygulama, beceriyi yüklemeden önce içeriğini doğrular ve gereken onayları ister. MCP Apps ve birazdan ele alacağımız Tasks uzantısı gibi diğer resmî MCP uzantılarında olduğu gibi Skills de isteğe bağlıdır: yalnızca hem istemci hem de sunucu desteklediğini bildirdiğinde kullanılır. İstemci desteği henüz yeni yeni gelişiyor; bu yüzden buna güvenmeden önce uygulamanızın sunuculardan gerçekten beceri yükleyip yüklemediğini kontrol edin.
+</Callout>
+
+### Bir Araç Zamana ya da Cevaba İhtiyaç Duyduğunda
+
+Araç çağrılarının çoğu kısa alışverişlerdir: ajan sorar, sunucu cevap verir ve iş kaldığı yerden devam eder. Ama bazı işler bu ritme uymaz. Derinlemesine bir araştırma, büyük bir raporun dışa aktarılması ya da bir derleme (build) dakikalarca sürebilir. Bazı işler de ne olacağına ancak kullanıcının karar verebileceği bir noktaya gelir. MCP bu anlar için iki fikir sunar: zamana ihtiyaç duyan işler için **Tasks**, bir insana ihtiyaç duyan işler için ise **elicitation**, yani kullanıcıdan bilgi isteme.
+
+Resmî [Tasks uzantısı](https://tasks.extensions.modelcontextprotocol.io/) (`io.modelcontextprotocol/tasks`), yavaş bir `tools/call` çağrısının nasıl sonuçlanacağını değiştirir. Sunucu, iş bitene kadar isteği açık tutmak yerine hemen kalıcı bir görev tanıtıcısıyla (task handle) cevap verebilir. Bunu, paltonuzu vestiyere bırakınca aldığınız numaraya benzetebilirsiniz. İstemci görevin durumuna `tasks/get` ile bakabilir, `tasks/update` ile güncelleme ya da cevap gönderebilir, `tasks/cancel` ile görevi durdurabilir ve sonuç hazır olduğunda onu alabilir. Bu arada ajan başka işlere devam edip sonra geri dönebilir. Bu, en çok da siz yokken iş yürüten [sürekli çalışan botlar](/book/28-persistent-bots) için önemlidir. Tasks iki taraf için de isteğe bağlıdır: istemci desteğini her istekte bildirir, sunucu da her istek için ayrı ayrı görev oluşturup oluşturmayacağına karar verir. Mevcut araçlar bu yeteneği kendiliğinden kazanmaz; sunucuyu geliştirenlerin bunu eklemesi gerekir.
+
+<Compare
+  before={{ label: "Bekleten bir araç çağrısı", content: "Ajan export_report aracını çağırır ve bekler. İstek dakikalarca açık kalır. Bağlantı koparsa dışa aktarmanın bitip bitmediğini kimse bilemez; ajan da cevap gelene kadar başka hiçbir şey yapamaz." }}
+  after={{ label: "Bir görev tanıtıcısı", content: "Ajan export_report aracını çağırır ve hemen bir görev tanıtıcısı alır. Başka işlere geçer, görevi tasks/get ile kontrol eder ve rapor hazır olduğunda onu alır. Planlar değişirse tasks/cancel görevi durdurur." }}
+/>
+
+[Elicitation](https://modelcontextprotocol.io/specification/latest/client/elicitation), sunucunun durup kullanıcıdan yapılandırılmış bir girdi istemesini sağlar: “Staging ortamına dağıtılsın mı?”, “Bu iade onaylansın mı?” ya da iş onsuz ilerleyemeyecek eksik bir bilgi. Ana uygulama küçük bir form gösterir; kullanıcı cevap verebilir, reddedebilir ya da vazgeçebilir. Reddetmek de geçerli bir cevaptır ve sonrasında ne yapılacağına sunucu karar verir. Bu iki fikir doğal olarak buluşur: çalışan bir görev `input_required` durumunda bekleyip işin ortasında kullanıcıya bir şey sorabilir. Bir yazma işleminden önce böyle bir soru, kararın tam da önem taşıdığı yerde insanın devreye girdiği doğal bir kontrol noktasıdır.
+
+<Callout type="warning" title="Sunucudan gelen form da sunucudan gelen bir istektir">
+Bir elicitation isteği uygulamanızdan değil sunucudan gelir; bu yüzden herhangi bir araç çıktısı kadar dikkatli incelenmeyi hak eder. Cevap vermeden önce ne sorulduğunu okuyun ve sunucuya güvenmiyorsanız böyle bir forma asla parola, API anahtarı ya da başka bir gizli bilgi yazmayın. Destek de uygulamadan uygulamaya değişir: VS Code [elicitation desteğini belgeliyor](https://code.visualstudio.com/api/extension-guides/ai/mcp), Cursor elicitation'ı destekliyor, Claude Code ise terminal uygulamasına [MCP Tasks ve elicitation](https://code.claude.com/docs/en/mcp) desteğini herkese açık beta olarak ekledi; ancak bu destek henüz çalıştığı her ortamda yok. Resmî [istemci destek tablosu](https://modelcontextprotocol.io/extensions/client-matrix) hangi uygulamanın hangi uzantıları desteklediğini takip ediyor; bu yüzden iki özellikten birine güvenmeden önce kendi uygulamanızı kontrol edin.
+</Callout>
+
+### Sunucuyu Bulmak ve Bir Kez Bağlanmak
+
+Bir ajanın uzak bir sunucuyu kullanabilmesi için önce birinin o sunucuyu bulması, nasıl bağlanılacağını öğrenmesi ve oturum açması gerekir. Uzun süre bu; bir README dosyasından adres kopyalamak, hangi aktarım yönteminin (transport) kullanılacağını tahmin etmek ve aynı kurulumu her uygulamada baştan yapmak demekti. Artık iki tür kolaylık geliyor: istemcinin **bağlanmadan önce** okuyabileceği bilgiler ve **bir kez** kurup yeniden kullanabileceğiniz bağlantılar.
+
+Keşif tarafında, MCP'nin **Server Cards** uzantısı ([SEP-2127](https://modelcontextprotocol.io/seps/2127-mcp-server-cards)) 6 Ekim 2026'da kesinleşti. Uzantı, uzak bir sunucuyu anlatan küçük ve sabit bir belge tanımlar: sunucunun adı, uç noktaları ve aktarım yöntemleri, desteklediği protokol sürümleri. Bir web sitesi kartlarını `/.well-known/ai-catalog.json` adresindeki bir yapay zeka kataloğunda listeleyebilir. Böylece bir alan adına yönlendirilen istemci, elle ayar yapmadan nereye ve nasıl bağlanacağını öğrenir. Kart araç listesine bilerek yer vermez, çünkü bir sunucunun sunduğu araçlar oturum açan kullanıcıya göre değişebilir. Araçlar yine bağlandıktan sonra `tools/list` ile öğrenilir.
+
+Bağlantı tarafında GitHub, bağlayıcı adını da verdiği [GitHub tarafından doğrulanmış MCP sunucularını](https://github.blog/changelog/2026-10-28-connect-your-tools-to-copilot-without-all-the-setup/) 28 Ekim 2026'da herkese açık önizleme olarak kullanıma sunmaya başladı. Slack ya da Sentry gibi bir hizmette bir kez oturum açıyorsunuz; bağlantı Copilot uygulamasında, Copilot CLI'da, VS Code'da, buluttaki Copilot'ta ve GitHub Mobile'da çalışıyor.
+
+Üstelik araçlar yalnızca web hizmetlerinden ibaret değil. Google da aynı gün Android Dev Summit'te, Android'in birleşik araç çağırma katmanı olarak tanımladığı **AppFunctions**'ın beta aşamasına geçtiğini [duyurdu](https://developer.android.com/blog/posts/build-it-your-way-a-next-era-of-android-development). Android MCP sayesinde telefonunuzdaki bir uygulama, not oluşturmak ya da mesaj göndermek gibi işlevlerini kendi cihaz içi ajanına veya sistem düzeyindeki ajanlara sunabiliyor; hem de kimsenin uygulamayı açmasına gerek kalmadan.
+
+Bu da bizi daha önceki bir noktaya geri getiriyor: **bağlayıcı** bir ürün terimidir. Sunucu kartı, doğrulanmış rozeti ve tek seferlik oturum açma kurulumu kolaylaştırır ve *kime* bağlandığınıza güvenmenize yardım eder. Ama *neye* izin vereceğinize sizin yerinize karar vermez. Hangi hesabı bağlayacağınızı, hangi izinleri tanıyacağınızı ve hangi işlemlerin onay bekleyeceğini yine siz seçersiniz. Ne keşif bilgileri ne de doğrulama, araçlar listelendikten sonra gerçekte neler yapabildiklerini incelemenin yerini tutar.
+
+<Quiz
+  question="Uzak bir sunucu bir Server Card yayımlıyor ve uygulamanızda doğrulanmış bir bağlayıcı olarak görünüyor. Hâlâ size düşen iş nedir?"
+  options={[
+    "Hiçbir şey. Doğrulama, sunucudaki her aracın gönül rahatlığıyla çalıştırılabileceği anlamına gelir",
+    "Hangi hesabı ve izinleri vereceğinizi seçmek, listelenen araçların neler yapabildiğini incelemek",
+    "Server Card'daki araç listesini promptunuza kopyalamak",
+    "Sunucunun uç nokta adresini her prompta yazmak"
+  ]}
+  correctIndex={1}
+  explanation="Keşif bilgileri ve doğrulama, kurulumu kolaylaştırır ve sunucuyu kimin işlettiğini bilmenize yardım eder. Hesabınızı ya da yetki kapsamlarınızı sizin yerinize seçmezler; üstelik bir Server Card araçları listelemez bile. Bağlandıktan sonra araçları inceleyin ve yalnızca görevin gerektirdiği erişimi verin."
+/>
+
+## Okuma ve Yazmayı Deneyin
+
+Bu örnek, aynı hayali takip sistemine iki yoldan ulaşır. Yolu, işlemi veya erişim düzeyini değiştirin, sonra isteği çalıştırın. Yazma işleminde hem onaylamayı hem de reddetmeyi deneyin.
+
+<ToolsDemo copy={{
+  title: "Bir araç isteğini izleyin",
+  description: "Hayali bir takip sistemiyle önceden hazırlanmış simülasyon. Hiçbir hesap bağlanmaz; gerçek kayıtlar okunmaz veya oluşturulmaz. Bağlı modlar aynı örnek hesabı kullanır.",
+  routeLabel: "Entegrasyon yolu",
+  directLabel: "Doğrudan API",
+  mcpLabel: "MCP",
+  toolLabel: "İşlem",
+  readLabel: "Kayıtları ara",
+  writeLabel: "Kayıt oluştur",
+  accessLabel: "Bağlantı erişimi",
+  disconnectedLabel: "Bağlı değil",
+  readOnlyLabel: "Bağlı: yalnızca okuma",
+  readWriteLabel: "Bağlı: okuma ve yazma",
+  appLabel: "Yapay zeka uygulaması",
+  hostLabel: "YZ uygulaması + MCP istemcisi",
+  connectorLabel: "Doğrudan API bağlayıcısı",
+  serverLabel: "Takip sistemi MCP sunucusu",
+  serviceLabel: "Hata takip hizmeti",
+  requestLabel: "Araç isteği",
+  resultLabel: "Sonuç",
+  run: "İsteği çalıştır",
+  reset: "Sıfırla",
+  approve: "Oluşturmayı onayla",
+  decline: "Reddet",
+  query: "açık hatalar",
+  issueTitle: "Aramaya faydalı bir boş durum ekle",
+  policyNote: "Yol, isteğin nasıl iletildiğini değiştirir; sahip olduğu erişimi değiştirmez. Bu örnek uygulama, kayıt oluşturmadan önce onay ister. Bu bir uygulama politikasıdır, evrensel MCP kuralı değildir. Bir ayarı değiştirmek sonucu sıfırlar.",
+  states: {
+    ready: "Bir kurulum seçin ve isteği çalıştırın. Henüz hiçbir işlem yapılmadı.",
+    disconnected: "Bağlantı yapılandırılmamış. Uygulama bu projenin kayıtlarına ulaşamıyor. MCP'yi seçmek bir hesabı bağlamaz veya erişim vermez.",
+    denied: "Bu bağlantı yalnızca okuyabilir. Kayıt oluşturma, işlem yapılmadan engellenir. Bu isteği onaylamak yazma izni eklemez.",
+    read: "Simülasyondaki arama BUG-42 kaydını döndürür: eşleşen sonuç olmadığında arama sayfası boş kalıyor. Uygulama artık bu kanıtı modele verebilir. Hiçbir kayıt değişmedi.",
+    approval: "Yazma erişimi var, ama bu uygulama işlem için onayınızı istiyor. İstekteki başlığı inceleyin. Henüz hiçbir şey oluşturulmadı.",
+    created: "Simülasyondaki hizmet, istenen başlıkla FOLLOWUP-108 kaydının oluşturulduğunu doğrular. Model bu kimliği sonucun kanıtı olarak bildirebilir.",
+    declined: "Oluşturma reddedildi. Uygulama yazma işlemini hizmete göndermedi ve yeni kayıt oluşturulmadı."
+  }
+}} />
+
+Buradaki okuma ve yazma modları örnek entegrasyonumuza aittir. Gerçek izinler daha ayrıntılı olabilir. MCP iki tarafa ortak bir protokol sağlar. Hesabınızın projeye yazıp yazamayacağına veya uygulamanın önce size sorup sormayacağına karar vermez. **Kimlik doğrulama** kimliği belirler; **yetkilendirme** izin verilen erişimi belirler. Ayrı bir onay, belirli bir işlemi onaylayabilir. Uzak HTTP entegrasyonları [MCP yetkilendirme çerçevesini](https://modelcontextprotocol.io/specification/latest/basic/authorization) kullanabilir; ayrıntılar entegrasyona bağlıdır.
+
+<Quiz
+  question="Bağlı bir MCP entegrasyonu yalnızca okuma erişimine sahip. Ajan daha açık bir prompt kullanarak kayıt oluşturabilir mi?"
+  options={[
+    "Evet, çünkü MCP modelin istediği her işleme izin verir",
+    "Evet, kullanıcı o isteği onaylarsa",
+    "Hayır. Entegrasyonun yazma işlemi yapmadan önce yetkili yazma erişimine ihtiyacı vardır",
+    "Evet, beceri create_issue araç adını içeriyorsa"
+  ]}
+  correctIndex={2}
+  explanation="Prompt, beceri veya işlem onayı bağlantının erişimini genişletmez. Uygulama ve hizmet yazma işlemine izin vermelidir."
+/>
+
+## Araçları Olan Bir Ajana Prompt Yazmak
+
+Ajana hangi bilgileri arayacağını, bunları nasıl kullanacağını ve hangi işlemleri beklediğinizi söyleyin. Bağlantının zaten var olduğunu veya bir aracın hizmetteki tüm işlemleri desteklediğini varsaymayın.
+
+<Compare
+  before={{ label: "Çok fazla şey tahmine bırakılmış", content: "Hatalara bak ve her şeyi hallet." }}
+  after={{ label: "Açık sonuç ve sınırlar", content: "Bağlı projede boş arama sonuçlarıyla ilgili açık hataları ara. İlgili kayıtları özetle ve kimliklerini ekle. Gerekirse bir takip kaydı taslağı hazırla, ama oluşturmadan önce sor. Bağlantı veya gereken araç kullanılamıyorsa neyin eksik olduğunu açıkla. Başarılı bir araç sonucu olmadan kayıt oluşturulduğunu söyleme." }}
+/>
+
+Yeniden kullanılabilir bir kayıt değerlendirme becerisi yöntemi ekleyebilir: tekrar eden kayıtları kontrol et, yeniden üretme adımlarını karşılaştır, projenin kayıt şablonunu izle ve yanıtlanmamış soruları bildir. Araç işlemi sağlar. Beceri ise onu nasıl iyi kullanacağını açıklar.
+
+Araç çıktısını da değerlendirmek gerekir. Bir kayıt yorumu, belge veya arama sonucu hata ya da talimat gibi görünen metin içerebilir. Getirilen içeriğin kullanıcının isteğini veya uygulamanın kurallarını değiştirmesine izin vermek yerine onu veri olarak ele alın. MCP desteği tek başına sunucuyu veya içeriğini güvenilir yapmaz.
+
+Okuma başarısız olursa ajan hatayı bildirebilir veya makul bir alternatif deneyebilir. Yazma işlemi zaman aşımına uğrarsa tekrarlamadan önce değişikliğin yapılıp yapılmadığını kontrol etmelidir. Aksi halde yeniden deneme, aynı kaydı iki kez oluşturabilir. Kimlik bilgileri görev prompt'una değil, entegrasyonun bağlantı ayarlarına aittir. Bir bot siz uzaktayken araçları bir zamanlamaya göre kullandığında, [Sürekli Çalışan Botlar](/book/28-persistent-bots) bölümünde anlatıldığı gibi, bu kurallar daha da önemli hale gelir.
+
+<Quiz
+  question="Bağlayıcı, MCP ve araç birlikte nasıl çalışabilir?"
+  options={[
+    "Aynı şeyin üç farklı adıdırlar",
+    "Bir bağlayıcı, hizmetteki bir işlemi araç olarak sunmak için MCP kullanabilir",
+    "MCP hizmetin yerini alır ve tüm verilerini modelin içinde saklar",
+    "Her araç çağrısı için ağ bağlantısını bir beceri oluşturmalıdır"
+  ]}
+  correctIndex={1}
+  explanation="Bağlayıcı entegrasyondur, MCP onun iletişim protokolü olabilir ve araç belirli bir işlemdir. Doğrudan API entegrasyonu da MCP olmadan araçlar sunabilir."
+/>
+
+<InteractiveChecklist
+  title="Yeni bir entegrasyon kullanmadan önce"
+  items={[
+    { id: "source", label: "Görevin ihtiyaç duyduğu hizmeti, projeyi veya dosyaları belirleyin" },
+    { id: "capabilities", label: "Entegrasyonun gerçekten hangi araçları ve işlemleri sunduğunu kontrol edin" },
+    { id: "access", label: "Bağlı kimliği ve okuma veya yazma erişimini kontrol edin" },
+    { id: "approval", label: "Hangi işlemlerin onay beklemesi gerektiğine karar verin" },
+    { id: "evidence", label: "Başarı bildirmeden önce dönen kanıtı kontrol edin" }
+  ]}
+/>
+
+Sonraki bölüm olan [Harness'ler](/book/26-the-harnesses), bu bağlantıları, talimatları ve araç sonuçlarını görev boyunca koordine eden yazılımı ele alır.
