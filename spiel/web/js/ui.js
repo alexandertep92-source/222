@@ -283,7 +283,7 @@ const UI = {
       el.addEventListener('change', () => { Settings[key] = el.checked; saveSettings(); Sound.applySettings(); });
     }
     const retro = $('#set-retro');
-    retro.addEventListener('change', () => { Settings.retro = retro.checked; saveSettings(); applyResolution(); });
+    retro.addEventListener('change', () => { Settings.pixel = retro.checked; saveSettings(); applyResolution(); });
     const sens = $('#set-sens');
     sens.addEventListener('input', () => { Settings.sensitivity = parseFloat(sens.value); saveSettings(); $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`; });
   },
@@ -291,7 +291,7 @@ const UI = {
     $('#set-quality').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.q === Settings.quality));
     $('#set-landscape').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.l === (Settings.landscape || 'auto')));
     for (const key of ['music', 'sfx', 'vibrate', 'numbers', 'autoCam']) $(`#set-${key}`).checked = !!Settings[key];
-    $('#set-retro').checked = Settings.retro !== false;
+    $('#set-retro').checked = Settings.pixel === true;
     $('#set-sens').value = Settings.sensitivity;
     $('#sens-val').textContent = `${Math.round(Settings.sensitivity * 100)} %`;
   },

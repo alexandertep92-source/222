@@ -153,7 +153,7 @@ const SETTINGS_KEY = 'rumms.settings.v1';
 const RECORDS_KEY = 'rumms.records.v1';
 const Settings = Store.get(SETTINGS_KEY, {
   quality: 'mid', music: true, sfx: true, vibrate: true, numbers: true,
-  sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto', retro: true,
+  sensitivity: 1, autoCam: false, char: 'knight', landscape: 'auto', pixel: false,
 });
 function saveSettings() { Store.set(SETTINGS_KEY, Settings); }
 // Fortschritt über Runden hinweg: Sterne, Werkstatt, Erfolge, Hüte

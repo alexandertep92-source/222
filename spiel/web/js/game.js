@@ -898,8 +898,8 @@ function applyResolution() {
   const q = QUALITY[Settings.quality];
   const dpr = window.devicePixelRatio || 1;
   let pr = Math.max(0.5, Math.min(dpr, q.pixelRatio) * (1 + App.autoQ));
-  // Retro-Pixel-Look: höchstens ~320 Bildzeilen, kantig hochskaliert (spart nebenbei Leistung)
-  const retro = Settings.retro !== false;
+  // Retro-Pixel-Look (wahlweise): höchstens ~320 Bildzeilen, kantig hochskaliert (spart nebenbei Leistung)
+  const retro = Settings.pixel === true;
   if (retro) pr = Math.min(pr, Math.max(0.25, 320 / Math.max(1, View.h)));
   W.renderer.domElement.classList.toggle('retro', retro);
   W.renderer.setPixelRatio(pr);

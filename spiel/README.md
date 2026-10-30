@@ -38,8 +38,8 @@ wählen.
 Leuchteffekten; *Hoch* zusätzlich mit Bloom und schärferen Schatten; *Niedrig*
 für ältere Handys ohne Schatten und Gras. Die Auflösung passt sich automatisch
 an, wenn das Handy nicht hinterherkommt. Auf *Mittel* und *Hoch* haben Helden,
-Gegner, Bosse und Truhen dunkle Comic-Umrisse. Der **Retro-Pixel-Look** (an,
-abschaltbar unter *Einstellungen*) zeichnet die Spielwelt in kleiner Auflösung
+Gegner, Bosse und Truhen dunkle Comic-Umrisse. Der **Retro-Pixel-Look** (aus,
+einschaltbar unter *Einstellungen*) zeichnet die Spielwelt in kleiner Auflösung
 und skaliert sie kantig hoch.
 
 ## Helden und ihre Waffen

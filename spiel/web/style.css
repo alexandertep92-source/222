@@ -39,7 +39,7 @@ body {
 #app.rotated { --st: 0px; --sb: 0px; }
 #gl, #overlay, #touch { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 /* Retro-Pixel-Look: die Spielwelt wird in kleiner Auflösung gezeichnet und kantig hochskaliert */
-#gl.retro { image-rendering: pixelated; image-rendering: crisp-edges; }
+#gl.retro { image-rendering: pixelated; }
 #overlay { pointer-events: none; }
 #touch { touch-action: none; }
 #safe-probe { position: absolute; visibility: hidden; pointer-events: none; padding-left: var(--sl); padding-right: var(--sr); }
